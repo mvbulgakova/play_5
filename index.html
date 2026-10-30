@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Прогулка по Лобачевскому</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bot:16px;
+  --ink:#090b16;
+  --panel:rgba(12,14,28,.80);
+  --panel-solid:#0f1222;
+  --line:rgba(214,178,118,.26);
+  --fg:#ece5d6;
+  --muted:#a8a092;
+  --brass:#d6a35a;
+  --glass:#8fc3ff;
+  --display:"Cormorant Garamond","PT Serif",Georgia,serif;
+  --body:"IBM Plex Sans","Segoe UI",Roboto,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--fg);font-family:var(--body);font-size:14px;overflow:hidden;overscroll-behavior:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+#ui{position:fixed;inset:0;pointer-events:none}
+#ui::before{content:"";position:absolute;left:0;right:0;top:0;height:170px;background:linear-gradient(rgba(9,11,22,.78),rgba(9,11,22,0));pointer-events:none}
+#ui>*{pointer-events:auto}
+#top{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));max-width:min(620px,calc(100vw - 32px));display:flex;flex-direction:column;gap:4px;pointer-events:none}
+#top>*{pointer-events:auto}
+.brand{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+h1{font-family:var(--display);font-weight:600;font-size:34px;line-height:1.05;margin:0;text-wrap:balance;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+#wsub{font-size:12px;color:var(--muted);text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#worlds{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#worlds button{font:500 12px/1 var(--body);color:var(--fg);background:rgba(12,14,28,.62);border:1px solid var(--line);border-radius:3px;padding:7px 10px;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#worlds button:hover{border-color:var(--brass)}
+#worlds button[aria-pressed="true"]{background:var(--brass);color:#1a1206;border-color:var(--brass)}
+#worlds button kbd{font:400 10px var(--mono);opacity:.6;margin-right:5px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--glass);outline-offset:2px}
+#panel{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:330px;max-height:calc(100% - 290px);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:4px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#ptoggle{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--brass)}
+#ptoggle span{font-family:var(--mono);font-size:14px}
+#pbody{overflow:auto;padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;line-height:1.5}
+#panel.closed #pbody{display:none}
+#wdesc{margin:0;color:var(--fg)}
+.formula{font-family:var(--mono);font-size:12px;color:var(--brass);border-left:2px solid var(--brass);padding:4px 0 4px 10px;line-height:1.6}
+#pbody h3{margin:4px 0 0;font:600 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#wtasks{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;font-size:13px;color:var(--muted)}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--brass)}
+.ctl output{font-family:var(--mono);color:var(--fg);font-size:12px}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.check input{accent-color:var(--brass)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:500 12px var(--body);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:3px;padding:8px 10px;cursor:pointer}
+.btn:hover{border-color:var(--brass)}
+#stats{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(var(--bot) + env(safe-area-inset-bottom,0px));background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px;display:grid;grid-template-columns:auto auto;gap:3px 16px;font-size:12.5px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#stats .k{color:var(--muted);font-family:var(--body)}
+#stats .v{text-align:right;color:var(--fg)}
+#hint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bot) + env(safe-area-inset-bottom,0px));max-width:min(560px,calc(100vw - 32px));text-align:center;font-size:12.5px;color:var(--fg);background:rgba(12,14,28,.66);border:1px solid var(--line);border-radius:4px;padding:8px 14px;transition:opacity .6s}
+#hint.gone{opacity:0;pointer-events:none}
+#mapwrap{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(var(--bot) + env(safe-area-inset-bottom,0px));width:200px;display:flex;flex-direction:column;align-items:center;gap:6px}
+#map{width:200px;height:200px;display:block}
+#mapwrap .cap{font-size:11px;color:var(--muted);text-align:center;line-height:1.3;text-shadow:0 1px 6px #000}
+#joy{position:absolute;left:calc(24px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:rgba(12,14,28,.4);display:none;touch-action:none}
+#knob{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:var(--brass);opacity:.8}
+#vbtns{position:absolute;right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(30px + env(safe-area-inset-bottom,0px));display:none;flex-direction:column;gap:10px}
+#vbtns button{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:rgba(12,14,28,.6);color:var(--fg);font-size:18px;touch-action:none}
+#err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-size:16px;line-height:1.6;background:var(--ink)}
+#crosshair{position:fixed;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 0 1px rgba(0,0,0,.95))}
+#crosshair::before,#crosshair::after{content:"";position:absolute;background:rgba(236,229,214,.8)}
+#crosshair::before{left:7px;top:0;width:4px;height:18px}
+#crosshair::after{top:7px;left:0;height:4px;width:18px}
+#danger{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .12s linear;background:radial-gradient(ellipse at center, rgba(170,18,18,0) 52%, rgba(170,18,18,.6) 100%)}
+@media (pointer:coarse){
+  :root{--bot:156px}
+  #joy{display:block}
+  #vbtns{display:flex}
+}
+@media (max-width:760px){
+  h1{font-size:24px}
+  .brand{font-size:10px}
+  #worlds button{padding:6px 8px;font-size:11px}
+  #worlds button kbd{display:none}
+  #panel{top:auto;bottom:calc(var(--bot) + env(safe-area-inset-bottom,0px));left:auto;width:min(330px,calc(100vw - 32px));max-height:52%}
+  #panel:not(.closed){left:calc(16px + env(safe-area-inset-left,0px));width:auto}
+  #ptoggle{padding:9px 12px}
+  #stats{font-size:11px;padding:8px 10px;gap:2px 10px}
+  #hint{display:none}
+  #mapwrap{width:124px;bottom:calc(var(--bot) + 52px + env(safe-area-inset-bottom,0px))}
+  #map{width:124px;height:124px}
+  #mapwrap .cap{font-size:10px}
+}
+@media (prefers-reduced-motion:reduce){#hint{transition:none}}
+</style>
+
+<canvas id="gl" aria-label="Трёхмерная сцена в пространстве Лобачевского"></canvas>
+<div id="ui">
+  <div id="danger"></div>
+  <div id="crosshair"></div>
+  <header id="top">
+    <div class="brand">Пространство Лобачевского · модель Кэли — Клейна</div>
+    <h1 id="wname">Додекаэдры с прямыми углами</h1>
+    <div id="wsub" class="mono"></div>
+    <nav id="worlds" aria-label="Миры"></nav>
+  </header>
+  <aside id="panel">
+    <button id="ptoggle" aria-expanded="true">Об этом мире <span>−</span></button>
+    <div id="pbody">
+      <p id="wdesc"></p>
+      <div id="wformula" class="formula"></div>
+      <h3>Попробуйте</h3>
+      <ul id="wtasks"></ul>
+      <label class="ctl" id="hrow">Высота над полом <output id="hout"></output>
+        <input type="range" id="height" min="0.05" max="2.5" step="0.01" value="0.45"></label>
+      <label class="ctl">Видимость <output id="fout"></output>
+        <input type="range" id="fog" min="2" max="12" step="0.1" value="5.5"></label>
+      <label class="check"><input type="checkbox" id="glass" checked> Стёкла в стенах</label>
+      <div class="row">
+        <button class="btn" id="reset">К началу <span class="mono">(R)</span></button>
+        <button class="btn" id="fs">Во весь экран</button>
+      </div>
+    </div>
+  </aside>
+  <div id="stats" class="mono"></div>
+  <div id="hint"></div>
+  <div id="mapwrap" hidden><canvas id="map" width="400" height="400"></canvas><div class="cap">Вид сверху в модели Кэли — Клейна</div></div>
+  <div id="joy"><div id="knob"></div></div>
+  <div id="vbtns"><button id="bup" aria-label="Вверх">▲</button><button id="bdown" aria-label="Вниз">▼</button></div>
+</div>
+
+<script>
+'use strict';
+// ───────────────────────── Миры ─────────────────────────
+const WORLDS = [
+  { id:'dodeca', type:'rooms', p:5, r:4, fog:5.5,
+    name:'Додекаэдры с прямыми углами',
+    sub:'{5,3,4} · двугранный угол 90° · 4 комнаты у ребра',
+    desc:'Каждая комната — правильный додекаэдр, и все его двугранные углы прямые. В евклидовом пространстве угол додекаэдра равен 116,6°, а здесь стены отодвинуты от центра на расстояние arth h, и угол становится прямым (п. 6.3). Отражения в гранях заполняют всё пространство без щелей и наложений.',
+    formula:'cos α = (h² − cos φ)/(1 − h²), cos φ = 1/√5<br>h = 5<sup>−1/4</sup> ≈ 0,669 ⇒ α = 90°',
+    tasks:['Облетите ребро: вокруг него ровно четыре комнаты.','Посмотрите вдаль: число видимых комнат растёт с расстоянием как показательная функция, а не как куб расстояния.','Лампы двух цветов: соседние комнаты всегда разного цвета, потому что у ребра чётное число комнат.'] },
+  { id:'cubes', type:'rooms', p:4, r:5, fog:5.5,
+    name:'Кубы с углом 72°',
+    sub:'{4,3,5} · двугранный угол 72° · 5 кубов у ребра',
+    desc:'Комната — куб, грани которого в модели лежат в плоскостях kᵢ = ±t. По теореме 6.1 его двугранный угол меньше прямого. При t ≈ 0,486 угол равен 72°, и вокруг каждого ребра помещаются ровно пять кубов. Четыре куба оставили бы щель из п. 6.2.',
+    formula:'cos α = t²/(1 − t²)<br>t = 0,486 ⇒ α = 72° = 360°/5',
+    tasks:['Облетите ребро: кубов вокруг него пять, а не четыре.','Сравните с мирами «Евклидовы кубы» и «Кубы на абсолюте».','Все лампы одного цвета: при пяти кубах у ребра раскрасить комнаты в шахматном порядке нельзя.'] },
+  { id:'ideal', type:'rooms', p:4, r:6, fog:6,
+    name:'Кубы с вершинами на абсолюте',
+    sub:'{4,3,6} · двугранный угол 60° · 6 кубов у ребра',
+    desc:'Если увеличивать куб, его вершины уходят на абсолют при t = 1/√3, а двугранный угол убывает до 60° (теорема 6.1). Такие кубы тоже заполняют пространство, по шесть у каждого ребра. Рёбра уходят в бесконечность, и встать у вершины нельзя.',
+    formula:'t = 1/√3 ≈ 0,577<br>cos α = t²/(1 − t²) = 1/2 ⇒ α = 60°',
+    tasks:['Летите к вершине: сколько бы вы ни летели, она остаётся на абсолюте.','Рядом с вершиной рёбра почти параллельны: это прямые, сходящиеся в одной точке абсолюта.'] },
+  { id:'euclid', type:'flat', fog:5.5,
+    name:'Евклидовы кубы',
+    sub:'для сравнения · угол 90° · 4 куба у ребра',
+    desc:'Тот же каркас в обычном пространстве. У каждого ребра стоят четыре куба, число видимых комнат растёт как куб расстояния, а прямые рёбра остаются параллельными сколь угодно далеко.',
+    formula:'α = 90° = 360°/4',
+    tasks:['Переключитесь на «Кубы с углом 72°» и обратно: в каком мире видно больше комнат при одинаковой видимости?'] },
+  { id:'house', type:'house', fog:4.8,
+    name:'Дом на орисферах',
+    sub:'пол и потолок — орисферы · высота комнаты ln 2',
+    desc:'Комната из п. 6.4: пол и потолок — концентрические орисферы, стены — плоскости через точку абсолюта ω над головой. Все углы прямые, пол — евклидов квадрат. Высота комнаты равна ln 2, поэтому потолок вдвое меньше пола. Над четырьмя соседними комнатами стоит одна, под полом каждой — четыре, и все комнаты одинаковые.',
+    formula:'пол ⟨X,ℓ⟩ = −1, потолок ⟨X,ℓ⟩ = −e<sup>−h</sup><br>h = ln 2 ⇒ сторона потолка 2a·e<sup>−h</sup> = a',
+    tasks:['Посмотрите вверх: все вертикальные рёбра сходятся в одну точку ω. Это связка параллельных прямых.','Поднимитесь на этаж (Пробел): комната станет вдвое шире, а внизу окажутся четыре комнаты.','Спуститесь (C): снизу комнаты кажутся всё мельче, но вокруг вас они такие же.'] },
+  { id:'plane', type:'plane', fog:8,
+    name:'Плоскость Лобачевского',
+    sub:'{5,4} · прямоугольные пятиугольники · вы идёте по эквидистанте',
+    desc:'Пол — плоскость, замощённая правильными пятиугольниками с прямыми углами, по четыре у вершины. Вы идёте на постоянной высоте, то есть по эквидистантной поверхности (п. 5.6). Столбы в вершинах перпендикулярны полу и расходятся вверх: у двух перпендикуляров к одной плоскости нет общей точки. Карта справа — вид сверху в модели Кэли — Клейна, стороны пятиугольников на ней прямые.',
+    formula:'ch²δ = 1/(1 − cos 72°) ⇒ δ ≈ 0,627<br>пол виден в круге радиуса Π(h) = 2 arctg e<sup>−h</sup>',
+    tasks:['Пройдите «квадрат»: четыре раза вперёд на одно расстояние с поворотом на 90°. Расстояние до старта не станет нулём.','Поднимитесь выше: пол сожмётся в круг с угловым радиусом Π(h). Это угол параллельности из п. 2.2. Над краем круга начинается небо, хотя плоскость бесконечна.'] },
+];
+
+// ───────────────────────── Шейдеры ─────────────────────────
+const VS = `#version 300 es
+void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Position=vec4(p*2.-1.,0.,1.); }`;
+
+const HEAD = `#version 300 es
+precision highp float;
+uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube;
+out vec4 fragColor;
+int gId;
+float md(vec4 a, vec4 b){ return dot(a.xyz,b.xyz)-a.w*b.w; }
+vec4 hn(vec4 p){ return p*inversesqrt(max(-md(p,p),1e-20)); }
+vec4 tp(vec4 v, vec4 p){ v+=md(v,p)*p; return v*inversesqrt(max(md(v,v),1e-20)); }
+void adv(inout vec4 p, inout vec4 v, float s){ float c=cosh(s), h=sinh(s); vec4 np=c*p+h*v; v=h*p+c*v; p=hn(np); v=tp(v,p); }
+float fresnel(float c){ return 0.04+0.96*pow(1.-clamp(c,0.,1.),5.); }
+vec3 finish(vec3 c){ c=1.-exp(-c*1.15); c=pow(c,vec3(1./2.2));
+  vec2 q=gl_FragCoord.xy/uRes-.5; c*=1.-0.35*dot(q,q); return c; }
+`;
+
+const NORMAL = `
+vec4 calcN(vec4 p, float d0){
+  int sid=gId;
+  vec4 t0=tp(vec4(1,0,0,0),p);
+  vec4 t1=vec4(0,1,0,0); t1+=md(t1,p)*p; t1-=md(t1,t0)*t0; t1*=inversesqrt(max(md(t1,t1),1e-20));
+  vec4 t2=vec4(0,0,1,0); t2+=md(t2,p)*p; t2-=md(t2,t0)*t0; t2-=md(t2,t1)*t1; t2*=inversesqrt(max(md(t2,t2),1e-20));
+  const float e=1e-3;
+  vec4 n=(map(p+e*t0)-d0)*t0+(map(p+e*t1)-d0)*t1+(map(p+e*t2)-d0)*t2;
+  gId=sid; return tp(n,p);
+}`;
+
+const FS_ROOMS = HEAD + `
+uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV;
+uniform float uHasV; uniform float uBall; uniform float uParity; uniform float uCamPar;
+uniform vec4 uEnemy; uniform float uEnemyR; uniform float uEnemyAlert;
+const vec3 FOG=vec3(0.028,0.032,0.066);
+float map(vec4 p){
+  float a=md(p,uE1), b=md(p,uE2);
+  float d=asinh(sqrt(a*a+b*b))-uTube; gId=1;
+  if(uHasV>.5){ float dv=acosh(max(-md(p,uV),1.))-uBall; if(dv<d){d=dv;gId=2;} }
+  float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
+  if(uEnemyR>0.){ float de=acosh(max(-md(p,uEnemy),1.))-uEnemyR; if(de<d){d=de;gId=4;} }
+  return d;
+}` + NORMAL + `
+void main(){
+  vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 dr=normalize(vec3(uv*uTanFov,1.));
+  vec4 p=uCam[3], v=uCam[0]*dr.x+uCam[1]*dr.y+uCam[2]*dr.z;
+  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; int cells=0; bool hit=false;
+  for(int i=0;i<160;i++){
+    for(int it=0;it<16;it++){
+      bool any=false;
+      for(int k=0;k<4;k++){
+        float s=md(p,uM[k]);
+        if(s>0.){
+          p-=2.*s*uM[k]; v-=2.*md(v,uM[k])*uM[k]; any=true;
+          if(k==0){ cells++;
+            if(uGlass>.5){ float fr=fresnel(abs(md(v,uM[0]))); float fg=exp(-t/uFog);
+              acc+=thr*fg*fr*vec3(0.30,0.48,0.85)*0.22; thr*=vec3(0.93,0.95,0.98)*(1.-0.35*fr); }
+          }
+        }
+      }
+      if(!any) break;
+    }
+    d=map(p);
+    if(d<3e-4*(1.+t)){hit=true;break;}
+    adv(p,v,d); t+=d;
+    if(t>15.||thr.g<0.02) break;
+  }
+  vec3 col=FOG;
+  if(hit){
+    int id=gId; vec4 n=calcN(p,d);
+    bool odd=uParity>.5 && ((cells+int(uCamPar))%2==1);
+    vec3 lamp=odd? vec3(0.45,0.78,1.0): vec3(1.0,0.72,0.40);
+    vec3 sc;
+    if(id==4){ sc=mix(vec3(0.72,0.81,0.92), vec3(0.95,0.25,0.16), uEnemyAlert)*1.4; }
+    else if(id==3) sc=lamp*2.4;
+    else{
+      vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.)));
+      float att=1.5/(0.22+sr*sr);
+      float dif=max(md(n,L),0.), head=max(-md(n,v),0.);
+      vec4 hv=tp(L-v,p); float sp=pow(max(md(n,hv),0.),48.);
+      vec3 base=id==1? vec3(0.80,0.55,0.26): vec3(0.88,0.85,0.80);
+      sc=base*(0.05+dif*att*lamp+0.22*head)+sp*att*lamp*0.5;
+    }
+    col=mix(FOG,sc,exp(-t/uFog));
+  }
+  fragColor=vec4(finish(acc+thr*col),1.);
+}`;
+
+const FS_HOUSE = HEAD + `
+uniform float uS; uniform vec2 uCell;
+const float LN2=0.6931471806;
+const vec3 FOG=vec3(0.030,0.030,0.058);
+vec2 gCell;
+void parab(inout vec4 x, float a, float b){ float w=x.w-x.z, u=x.w+x.z; float x1=x.x+a*w, x2=x.y+b*w;
+  u+=2.*a*x.x+2.*b*x.y+(a*a+b*b)*w; x=vec4(x1,x2,(u-w)*.5,(u+w)*.5); }
+void dil(inout vec4 x, float a){ float c=cosh(a), s=sinh(a); x.zw=vec2(c*x.z+s*x.w, s*x.z+c*x.w); }
+vec4 fromHS(vec3 q){ float w=1./q.z; float u=dot(q,q)/q.z; return vec4(q.x*w,q.y*w,(u-w)*.5,(u+w)*.5); }
+float map(vec4 p){
+  float w=p.w-p.z, Z=1./w, X=p.x*Z, Y=p.y*Z, lz=log(Z);
+  vec2 q=vec2(X,Y);
+  vec2 c=vec2(X<uS*.5?0.:uS, Y<uS*.5?0.:uS);
+  float d=asinh(length(q-c)*w)-uTube*1.25; gId=1;
+  float bx=min(X,uS-X), by=min(Y,uS-Y);
+  float a1=asinh(min(bx,by)*w);
+  float b1=sqrt(lz*lz+a1*a1)-uTube; if(b1<d){d=b1;gId=2;}
+  vec2 par=mod(gCell,2.);
+  float a2=asinh(min(abs(X-par.x*uS),abs(Y-par.y*uS))*w), dc=lz-LN2;
+  float b2=sqrt(dc*dc+a2*a2)-uTube; if(b2<d){d=b2;gId=2;}
+  vec3 lc=vec3(uS*.5,uS*.5,1.41421356);
+  vec3 dq=vec3(q,Z)-lc;
+  float dl=acosh(1.+dot(dq,dq)/(2.*Z*lc.z))-0.05; if(dl<d){d=dl;gId=3;}
+  return d;
+}` + NORMAL + `
+void glassFloor(vec4 p, vec4 v, inout vec3 thr, inout vec3 acc, float t){
+  if(uGlass<.5) return;
+  vec2 par=mod(gCell,2.); bool odd=mod(par.x+par.y,2.)>.5;
+  float fr=fresnel(abs(md(v,tp(vec4(0,0,1,1),p)))); float fg=exp(-t/uFog);
+  vec3 tint=odd? vec3(0.78,0.86,0.97): vec3(0.98,0.84,0.62);
+  acc+=thr*fg*fr*tint*0.2; thr*=mix(vec3(1.),tint,0.28)*(1.-0.35*fr);
+}
+void glassWall(vec4 p, vec4 v, vec4 nn, inout vec3 thr, inout vec3 acc, float t){
+  if(uGlass<.5) return;
+  float fr=fresnel(abs(md(v,tp(nn,p)))); float fg=exp(-t/uFog);
+  acc+=thr*fg*fr*vec3(0.30,0.48,0.85)*0.16; thr*=vec3(0.95,0.96,0.985)*(1.-0.35*fr);
+}
+void foldH(inout vec4 p, inout vec4 v, inout vec3 thr, inout vec3 acc, float t){
+  for(int it=0;it<12;it++){
+    float w=p.w-p.z, Z=1./w;
+    if(Z>=2.){ dil(p,-LN2); dil(v,-LN2); vec2 par=mod(gCell,2.); gCell=floor(gCell*.5);
+      parab(p,par.x*uS*.5,par.y*uS*.5); parab(v,par.x*uS*.5,par.y*uS*.5); glassFloor(p,v,thr,acc,t); continue; }
+    if(Z<1.){ glassFloor(p,v,thr,acc,t); dil(p,LN2); dil(v,LN2); gCell*=2.; continue; }
+    float X=p.x*Z, Y=p.y*Z;
+    if(X>=uS){ parab(p,-uS,0.); parab(v,-uS,0.); gCell.x+=1.; glassWall(p,v,vec4(1,0,0,0),thr,acc,t); continue; }
+    if(X<0.){ glassWall(p,v,vec4(1,0,0,0),thr,acc,t); parab(p,uS,0.); parab(v,uS,0.); gCell.x-=1.; continue; }
+    if(Y>=uS){ parab(p,0.,-uS); parab(v,0.,-uS); gCell.y+=1.; glassWall(p,v,vec4(0,1,0,0),thr,acc,t); continue; }
+    if(Y<0.){ glassWall(p,v,vec4(0,1,0,0),thr,acc,t); parab(p,0.,uS); parab(v,0.,uS); gCell.y-=1.; continue; }
+    break;
+  }
+  gCell=mod(gCell,1024.);
+}
+void main(){
+  vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 dr=normalize(vec3(uv*uTanFov,1.));
+  vec4 p=uCam[3], v=uCam[0]*dr.x+uCam[1]*dr.y+uCam[2]*dr.z;
+  gCell=uCell;
+  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; bool hit=false;
+  for(int i=0;i<180;i++){
+    foldH(p,v,thr,acc,t);
+    d=map(p);
+    if(d<3e-4*(1.+t)){hit=true;break;}
+    float lz=log(1./(p.w-p.z));
+    float s=min(d,min(lz,LN2-lz)+0.015);
+    adv(p,v,s); t+=s;
+    if(t>14.||thr.g<0.02) break;
+  }
+  vec3 col=FOG;
+  if(hit){
+    int id=gId; vec4 n=calcN(p,d);
+    vec3 lamp=vec3(1.0,0.76,0.46);
+    vec3 sc;
+    if(id==3) sc=lamp*2.4;
+    else{
+      vec4 Lp=fromHS(vec3(uS*.5,uS*.5,1.41421356));
+      vec4 L=tp(Lp,p); float sr=sinh(acosh(max(-md(p,Lp),1.)));
+      float att=1.3/(0.2+sr*sr);
+      float dif=max(md(n,L),0.), head=max(-md(n,v),0.);
+      vec4 hv=tp(L-v,p); float sp=pow(max(md(n,hv),0.),40.);
+      vec3 base=id==1? vec3(0.82,0.58,0.28): vec3(0.62,0.44,0.24);
+      sc=base*(0.06+dif*att*lamp+0.24*head)+sp*att*lamp*0.45;
+    }
+    col=mix(FOG,sc,exp(-t/uFog));
+  }
+  fragColor=vec4(finish(acc+thr*col),1.);
+}`;
+
+const FS_PLANE = HEAD + `
+uniform vec4 uM[3]; uniform vec4 uE1; uniform vec4 uE2; uniform float uCamPar; uniform float uLampH;
+const vec3 FOG=vec3(0.20,0.21,0.30);
+float map(vec4 p){
+  float d=asinh(p.z); gId=0;
+  float a=md(p,uE1), b=md(p,uE2);
+  float dp=asinh(sqrt(a*a+b*b))-uTube; if(dp<d){d=dp;gId=1;}
+  vec4 C=vec4(0.,0.,sinh(uLampH),cosh(uLampH));
+  float dl=acosh(max(-md(p,C),1.))-0.07; if(dl<d){d=dl;gId=3;}
+  return d;
+}` + NORMAL + `
+void main(){
+  vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 dr=normalize(vec3(uv*uTanFov,1.));
+  vec4 p=uCam[3], v=uCam[0]*dr.x+uCam[1]*dr.y+uCam[2]*dr.z;
+  float t=0., d=0.; int par=0; bool hit=false;
+  for(int i=0;i<170;i++){
+    for(int it=0;it<16;it++){
+      bool any=false;
+      for(int k=0;k<3;k++){ float s=md(p,uM[k]);
+        if(s>0.){ p-=2.*s*uM[k]; v-=2.*md(v,uM[k])*uM[k]; any=true; if(k==0) par++; } }
+      if(!any) break;
+    }
+    d=map(p);
+    if(d<3e-4*(1.+t)){hit=true;break;}
+    adv(p,v,d); t+=d;
+    if(t>18.) break;
+  }
+  vec4 up=tp(vec4(0,0,1,0),p);
+  float sv=md(v,up);
+  vec3 sky=mix(vec3(0.20,0.21,0.30),vec3(0.035,0.045,0.10),smoothstep(-0.1,0.9,sv));
+  vec3 col=sky;
+  if(hit){
+    int id=gId; vec4 n=calcN(p,d);
+    vec3 lamp=vec3(1.0,0.78,0.48);
+    vec4 C=vec4(0.,0.,sinh(uLampH),cosh(uLampH));
+    vec4 L=tp(C,p); float sr=sinh(acosh(max(-md(p,C),1.)));
+    float att=0.9/(0.15+sr*sr);
+    float dif=max(md(n,L),0.), skyl=0.35+0.65*max(md(n,up),0.), head=max(-md(n,v),0.);
+    vec3 sc;
+    if(id==3) sc=lamp*2.4;
+    else if(id==1){ vec3 base=vec3(0.80,0.56,0.27); vec4 hv=tp(L-v,p);
+      sc=base*(0.18*skyl+dif*att*lamp+0.2*head)+pow(max(md(n,hv),0.),40.)*att*lamp*0.5; }
+    else{
+      bool odd=((par+int(uCamPar))%2)==1;
+      vec3 base=odd? vec3(0.22,0.32,0.44): vec3(0.84,0.77,0.63);
+      float e=asinh(abs(md(p,uM[0])));
+      float lw=0.010+0.0025*t;
+      base=mix(base,vec3(0.07,0.06,0.05),1.-smoothstep(lw,lw*1.8,e));
+      sc=base*(0.22*skyl+dif*att*lamp*0.9);
+    }
+    col=mix(FOG,sc,exp(-t/uFog));
+  }
+  fragColor=vec4(finish(col),1.);
+}`;
+
+const FS_FLAT = `#version 300 es
+precision highp float;
+uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube; uniform float uBall;
+out vec4 fragColor;
+const vec3 FOG=vec3(0.028,0.032,0.066);
+const float S=1.0;
+int gId;
+float map(vec3 p){ vec3 f=fract(p/S), m=min(f,1.-f);
+  float d=min(min(length(m.xy),length(m.yz)),length(m.xz))*S-uTube; gId=1;
+  float db=length(m)*S-uBall; if(db<d){d=db;gId=2;}
+  float dl=length(f-.5)*S-0.055; if(dl<d){d=dl;gId=3;}
+  return d; }
+float fresnel(float c){ return 0.04+0.96*pow(1.-clamp(c,0.,1.),5.); }
+void main(){
+  vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
+  vec3 dr=normalize(vec3(uv*uTanFov,1.));
+  vec3 p=uCam[3].xyz, v=normalize(uCam[0].xyz*dr.x+uCam[1].xyz*dr.y+uCam[2].xyz*dr.z);
+  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; bool hit=false;
+  vec3 cell=floor(p/S);
+  for(int i=0;i<160;i++){
+    d=map(p);
+    if(d<3e-4*(1.+t)){hit=true;break;}
+    p+=v*d; t+=d;
+    vec3 nc=floor(p/S);
+    if(nc!=cell){
+      vec3 ch=abs(nc-cell);
+      for(int a=0;a<3;a++) if(ch[a]>0.5 && uGlass>.5){ float fr=fresnel(abs(v[a])); float fg=exp(-t/uFog);
+        acc+=thr*fg*fr*vec3(0.30,0.48,0.85)*0.22; thr*=vec3(0.93,0.95,0.98)*(1.-0.35*fr); }
+      cell=nc;
+    }
+    if(t>15.||thr.g<0.02) break;
+  }
+  vec3 col=FOG;
+  if(hit){
+    int id=gId; const float e=1e-3;
+    vec3 n=normalize(vec3(map(p+vec3(e,0,0))-d,map(p+vec3(0,e,0))-d,map(p+vec3(0,0,e))-d)); gId=id;
+    vec3 c=(floor(p/S)+.5)*S;
+    bool odd=mod(floor(p.x/S)+floor(p.y/S)+floor(p.z/S),2.)>.5;
+    vec3 lamp=odd? vec3(0.45,0.78,1.0): vec3(1.0,0.72,0.40);
+    vec3 sc;
+    if(id==3) sc=lamp*2.4;
+    else{ vec3 L=normalize(c-p); float r=length(c-p); float att=1.5/(0.22+r*r);
+      float dif=max(dot(n,L),0.), head=max(-dot(n,v),0.); vec3 hv=normalize(L-v); float sp=pow(max(dot(n,hv),0.),48.);
+      vec3 base=id==1? vec3(0.80,0.55,0.26): vec3(0.88,0.85,0.80);
+      sc=base*(0.05+dif*att*lamp+0.22*head)+sp*att*lamp*0.5; }
+    col=mix(FOG,sc,exp(-t/uFog));
+  }
+  col=acc+thr*col; col=1.-exp(-col*1.15); col=pow(col,vec3(1./2.2));
+  vec2 q=gl_FragCoord.xy/uRes-.5; col*=1.-0.35*dot(q,q);
+  fragColor=vec4(col,1.);
+}`;
+
+const FS_MAP = `#version 300 es
+precision highp float;
+uniform vec2 uRes; uniform mat4 uT; uniform vec4 uM[3]; uniform vec4 uV; uniform float uCamPar; uniform float uFovH;
+out vec4 fragColor;
+float md(vec4 a, vec4 b){ return dot(a.xyz,b.xyz)-a.w*b.w; }
+void main(){
+  vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y*1.04;
+  float rr=length(uv);
+  if(rr>=0.998){ float ring=1.-smoothstep(0.004,0.014,abs(rr-1.003)); fragColor=vec4(vec3(0.84,0.64,0.35)*ring,ring); return; }
+  vec4 q=uT*(vec4(uv,0.,1.)*inversesqrt(1.-rr*rr));
+  int par=0;
+  for(int it=0;it<64;it++){ bool any=false;
+    for(int k=0;k<3;k++){ float s=md(q,uM[k]); if(s>0.){ q-=2.*s*uM[k]; any=true; if(k==0) par++; } }
+    if(!any) break; }
+  bool odd=((par+int(uCamPar))%2)==1;
+  vec3 c=odd? vec3(0.22,0.32,0.44): vec3(0.84,0.77,0.63);
+  float e=asinh(abs(md(q,uM[0]))); float fw=fwidth(e);
+  c=mix(c,vec3(0.07,0.06,0.05),1.-smoothstep(fw*0.5,fw*1.5,e));
+  float dv=acosh(max(-md(q,uV),1.)); float fv=fwidth(dv);
+  c=mix(c,vec3(0.86,0.60,0.30),1.-smoothstep(0.06,0.06+fv*1.5,dv));
+  c=mix(c,vec3(0.06,0.07,0.12),smoothstep(0.82,1.0,rr)*0.55);
+  float ang=atan(uv.x,uv.y);
+  if(rr<0.34 && abs(ang)<uFovH*.5) c=mix(c,vec3(1.,0.96,0.82),0.32*(1.-rr/0.34));
+  c=mix(c,vec3(0.95,0.36,0.22),1.-smoothstep(0.022,0.034,rr));
+  fragColor=vec4(c,1.);
+}`;
+
+// ───────────────────────── Линейная алгебра в R^{3,1} ─────────────────────────
+// Векторы (x1,x2,x3,x0), ⟨x,y⟩ = x1y1 + x2y2 + x3y3 − x0y0; матрицы 4×4 хранятся по столбцам.
+const md=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2]-a[3]*b[3];
+const I4=()=>[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+const O=[0,0,0,1];
+function mul(A,B){const C=new Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=A[k*4+r]*B[c*4+k];C[c*4+r]=s;}return C;}
+function apply(A,v){const o=[0,0,0,0];for(let r=0;r<4;r++)o[r]=A[r]*v[0]+A[4+r]*v[1]+A[8+r]*v[2]+A[12+r]*v[3];return o;}
+const col=(M,c)=>M.slice(c*4,c*4+4);
+function setCol(M,c,v){for(let r=0;r<4;r++)M[c*4+r]=v[r];}
+function refl(n){const Jn=[n[0],n[1],n[2],-n[3]],R=new Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)R[c*4+r]=(r===c?1:0)-2*n[r]*Jn[c];return R;}
+function boostLocal(M,k,s){const ch=Math.cosh(s),sh=Math.sinh(s),a=col(M,k),b=col(M,3);setCol(M,k,a.map((x,i)=>ch*x+sh*b[i]));setCol(M,3,b.map((x,i)=>sh*a[i]+ch*x));}
+function rotLocal(M,i,j,t){const c=Math.cos(t),s=Math.sin(t),a=col(M,i),b=col(M,j);setCol(M,i,a.map((x,q)=>c*x+s*b[q]));setCol(M,j,b.map((x,q)=>-s*a[q]+c*x));}
+function gs(M){
+  let p=col(M,3);const k=1/Math.sqrt(Math.max(-md(p,p),1e-30));p=p.map(x=>x*k);setCol(M,3,p);
+  const cs=[];
+  for(let i=0;i<3;i++){let v=col(M,i);const d=md(v,p);v=v.map((x,q)=>x+d*p[q]);
+    for(const u of cs){const e=md(v,u);v=v.map((x,q)=>x-e*u[q]);}
+    const n=1/Math.sqrt(Math.max(md(v,v),1e-30));v=v.map(x=>x*n);cs.push(v);setCol(M,i,v);}
+}
+function rowsToCols(R){const M=new Array(16);for(let r=0;r<4;r++)for(let c=0;c<4;c++)M[c*4+r]=R[r][c];return M;}
+function parabM(a,b){const s=a*a+b*b;return rowsToCols([[1,0,-a,a],[0,1,-b,b],[a,b,1-s/2,s/2],[a,b,-s/2,1+s/2]]);}
+function boostZ(h){const c=Math.cosh(h),s=Math.sinh(h);return rowsToCols([[1,0,0,0],[0,1,0,0],[0,0,c,s],[0,0,s,c]]);}
+function boostX(h){const c=Math.cosh(h),s=Math.sinh(h);return rowsToCols([[c,0,0,s],[0,1,0,0],[0,0,1,0],[s,0,0,c]]);}
+function rotZ(t){const c=Math.cos(t),s=Math.sin(t);return rowsToCols([[c,-s,0,0],[s,c,0,0],[0,0,1,0],[0,0,0,1]]);}
+function rotYP(y,p){const cy=Math.cos(y),sy=Math.sin(y),cp=Math.cos(p),sp=Math.sin(p);
+  return [sy,-cy,0,0, -cy*sp,-sy*sp,cp,0, cy*cp,sy*cp,sp,0, 0,0,0,1];}
+function det3(a,b,c,d,e,f,g,h,i){return a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g);}
+function planeThrough(A,B,C){
+  const m=[A,B,C],w=[0,0,0,0];
+  for(let i=0;i<4;i++){const cols=[0,1,2,3].filter(j=>j!==i);
+    w[i]=(i%2?-1:1)*det3(...cols.map(j=>m[0][j]),...cols.map(j=>m[1][j]),...cols.map(j=>m[2][j]));}
+  const n=[w[0],w[1],w[2],-w[3]],k=1/Math.sqrt(md(n,n));return n.map(x=>x*k);
+}
+function solve(G,b){const n=b.length,A=G.map((r,i)=>[...r,b[i]]);
+  for(let i=0;i<n;i++){let p=i;for(let r=i+1;r<n;r++)if(Math.abs(A[r][i])>Math.abs(A[p][i]))p=r;[A[i],A[p]]=[A[p],A[i]];
+    for(let r=0;r<n;r++)if(r!==i){const f=A[r][i]/A[i][i];for(let c=i;c<=n;c++)A[r][c]-=f*A[i][c];}}
+  return A.map((r,i)=>r[n]/r[i]);}
+function foot(ns){
+  const a=solve(ns.map(x=>ns.map(y=>md(x,y))),ns.map(n=>n[3]));
+  const x=O.slice();ns.forEach((n,j)=>{for(let q=0;q<4;q++)x[q]+=a[j]*n[q];});
+  const nn=md(x,x);if(nn<-1e-9){const k=1/Math.sqrt(-nn);return x.map(v=>v*k);}return x[3]<0?x.map(v=>-v):x;
+}
+function orth(a,b){const d=md(a,b),v=a.map((x,i)=>x-d*b[i]),k=1/Math.sqrt(md(v,v));return v.map(x=>x*k);}
+function orient(n,P){return md(n,P)>0?n.map(x=>-x):n;}
+
+// ───────────────────────── ИИ-враг (пространство Лобачевского) ─────────────────────────
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function normalizePoint(p){let q=p.slice();if(q[3]<0)q=q.map(x=>-x);const s=-md(q,q);if(s<=1e-12)return O.slice();const k=1/Math.sqrt(s);return q.map(x=>x*k);}
+function tangent(v,p){const d=md(v,p);let u=v.map((x,i)=>x+d*p[i]);let n=md(u,u);
+  if(n<=1e-12){const basis=[[1,0,0,0],[0,1,0,0],[0,0,1,0]];
+    for(const b of basis){const dd=md(b,p);u=b.map((x,i)=>x+dd*p[i]);n=md(u,u);if(n>1e-12)break;}}
+  const k=1/Math.sqrt(Math.max(md(u,u),1e-30));return u.map(x=>x*k);}
+function hyperbolicDistance(a,b){return Math.acosh(Math.max(1,-md(a,b)));}
+function dirTo(a,b){const ab=md(a,b),ch=Math.max(1,-ab),d=Math.acosh(ch);
+  if(d<1e-6)return tangent([1,0,0,0],a);
+  const sh=Math.sinh(d),v=b.map((x,i)=>x+ab*a[i]);return tangent(v.map(x=>x/sh),a);}
+function advancePose(p,u,s){const ch=Math.cosh(s),sh=Math.sinh(s);
+  const np=p.map((x,i)=>ch*x+sh*u[i]);const nu=u.map((x,i)=>sh*p[i]+ch*x);
+  const pn=normalizePoint(np);return {p:pn,u:tangent(nu,pn)};}
+function rayPlaneHit(p,u,n,maxDist){const A=md(p,n),B=md(u,n);
+  if(Math.abs(B)<1e-12)return null;const th=-A/B;
+  if(!(th>1e-9&&th<1-1e-9))return null;const s=Math.atanh(th);
+  if(s>1e-5&&s<maxDist-1e-5)return s;return null;}
+function raymarchObstacles(p0,u0,maxDist,map,stepCap){stepCap=stepCap||0.2;let p=normalizePoint(p0),u=tangent(u0,p),t=0;
+  for(let i=0;i<100;i++){const d=map(p);if(d<5e-4*(1+t))return t;
+    const s=Math.min(Math.max(d,1e-4),stepCap,maxDist-t);if(s<=1e-6)break;
+    const nx=advancePose(p,u,s);p=nx.p;u=nx.u;t+=s;if(t>=maxDist)break;}
+  return maxDist;}
+// Карта препятствий комнаты: рёбра-«трубки», вершина-«шар», центральная лампа.
+function roomsObstacleMap(p,g,radii){radii=radii||{};const tube=radii.tube??0.09,ball=radii.ball??0.13,lamp=radii.lamp??0.07;
+  const a=md(p,g.E1),b=md(p,g.E2);let d=Math.asinh(Math.sqrt(a*a+b*b))-tube;
+  if(g.hasV){const dv=Math.acosh(Math.max(-md(p,g.V),1))-ball;d=Math.min(d,dv);}
+  const dl=Math.acosh(Math.max(p[3],1))-lamp;return Math.min(d,dl);}
+// Отражение точки и касательного вектора через зеркальные стены (как в шейдере).
+function foldEnemy(p,v,g){for(let it=0;it<24;it++){let any=false;
+  for(let k=0;k<4;k++){const s=md(p,g.M[k]);
+    if(s>0){const sv=md(v,g.M[k]);for(let q=0;q<4;q++){p[q]-=2*s*g.M[k][q];v[q]-=2*sv*g.M[k][q];}any=true;}}
+  if(!any)break;}}
+
+const ENEMY_STATE={PATROL:0,SUSPECT:1,CHASE:2,SEARCH:3,RETURN:4};
+function apparentAngularRadius(dist,bodyRadius){bodyRadius=bodyRadius??0.12;if(dist<1e-4)return Math.PI/2;
+  return Math.asin(clamp(Math.sinh(bodyRadius)/Math.sinh(dist),0,1));}
+class Enemy{
+  constructor(opts){opts=opts||{};
+    this.pos=normalizePoint(opts.pos??[0,0,0,1]);
+    this.dir=tangent(opts.dir??[1,0,0,0],this.pos);
+    this.waypoints=(opts.waypoints??[[0,0,0,1]]).map(normalizePoint);this.wp=0;
+    this.fov=opts.fov??Math.PI/3;this.viewDist=opts.viewDist??6;
+    this.speed=opts.speed??0.34;this.turnSpeed=opts.turnSpeed??4;
+    this.arriveRadius=opts.arriveRadius??0.08;this.playerRadius=opts.playerRadius??0.12;
+    this.state=ENEMY_STATE.PATROL;this.alert=0;this.timer=0;this.lastSeen=null;
+    this.memoryTime=opts.memoryTime??2.5;this.searchTime=opts.searchTime??3.5;this.catchDist=opts.catchDist??0.4;}
+  visible(playerPos,env){env=env||{};
+    const dist=hyperbolicDistance(this.pos,playerPos);
+    if(dist>this.viewDist)return {seen:false,dist,reason:'too far'};
+    const toPlayer=dirTo(this.pos,playerPos);
+    const angle=Math.acos(clamp(md(this.dir,toPlayer),-1,1));
+    const r=apparentAngularRadius(dist,this.playerRadius);
+    if(angle>this.fov/2+r)return {seen:false,dist,angle,reason:'outside fov'};
+    if(env.obstacleMap){const maxCheck=Math.max(0.01,dist-0.03);
+      const hit=raymarchObstacles(this.pos,toPlayer,maxCheck,env.obstacleMap);
+      if(hit<dist-0.05)return {seen:false,dist,angle,reason:'obstacle'};}
+    const angleScore=1-clamp(angle/(this.fov/2+1e-6),0,1);
+    const sh=Math.sinh(dist);const distScore=1/(1+0.15*sh*sh);
+    return {seen:true,dist,angle,score:clamp(angleScore*distScore,0,1)};}
+  turnTowards(desired,dt){const k=1-Math.exp(-this.turnSpeed*dt);
+    const mixed=this.dir.map((x,i)=>x*(1-k)+desired[i]*k);this.dir=tangent(mixed,this.pos);}
+  moveTowards(target,dt,env){env=env||{};
+    const dist=hyperbolicDistance(this.pos,target);if(dist<this.arriveRadius)return true;
+    const desired=dirTo(this.pos,target);this.turnTowards(desired,dt);
+    if(clamp(md(this.dir,desired),-1,1)<Math.cos(0.35))return false;
+    let step=Math.min(dist,this.speed*dt);
+    if(env.obstacleMap){const free=raymarchObstacles(this.pos,this.dir,step,env.obstacleMap);
+      step=Math.min(step,Math.max(0,free-0.04));}
+    if(step>1e-6){const nx=advancePose(this.pos,this.dir,step);this.pos=nx.p;this.dir=nx.u;}
+    return hyperbolicDistance(this.pos,target)<this.arriveRadius;}
+  update(dt,playerPos,env){env=env||{};const now=env.time??performance.now();
+    const vis=this.visible(playerPos,env);
+    if(vis.seen){this.lastSeen={pos:playerPos.slice(),time:now};
+      this.alert=clamp(this.alert+dt*(0.6+2.5*(vis.score??0.5)),0,1);}
+    else this.alert=clamp(this.alert-dt*0.45,0,1);
+    if(this.alert>=1)this.state=ENEMY_STATE.CHASE;
+    switch(this.state){
+      case ENEMY_STATE.PATROL:{const tg=this.waypoints[this.wp];if(this.moveTowards(tg,dt,env))this.wp=(this.wp+1)%this.waypoints.length;
+        if(this.alert>0.35){this.state=ENEMY_STATE.SUSPECT;this.timer=0;}break;}
+      case ENEMY_STATE.SUSPECT:{if(this.lastSeen)this.turnTowards(dirTo(this.pos,this.lastSeen.pos),dt);
+        this.timer+=dt;if(this.alert>=1)this.state=ENEMY_STATE.CHASE;else if(this.timer>1.4){this.state=ENEMY_STATE.PATROL;this.timer=0;}break;}
+      case ENEMY_STATE.CHASE:{const tg=vis.seen?playerPos:(this.lastSeen?.pos??playerPos);this.moveTowards(tg,dt,env);
+        if(!vis.seen&&this.lastSeen&&now-this.lastSeen.time>this.memoryTime*1000){this.state=ENEMY_STATE.SEARCH;this.timer=0;}
+        if(vis.seen&&vis.dist<this.catchDist){env.onCatch?.(this);this.state=ENEMY_STATE.SEARCH;this.timer=0;}break;}
+      case ENEMY_STATE.SEARCH:{if(this.lastSeen)this.moveTowards(this.lastSeen.pos,dt,env);
+        this.timer+=dt;if(vis.seen)this.state=ENEMY_STATE.CHASE;else if(this.timer>this.searchTime){this.state=ENEMY_STATE.RETURN;this.timer=0;}break;}
+      case ENEMY_STATE.RETURN:{if(this.moveTowards(this.waypoints[this.wp],dt,env))this.state=ENEMY_STATE.PATROL;if(vis.seen)this.state=ENEMY_STATE.CHASE;break;}
+    }
+    return vis;}
+}
+
+function roomGeom(p,r){
+  let us,c;
+  if(p===4){us=[[1,0,0],[0,1,0],[0,0,1]];c=0;}
+  else{const f=(1+Math.sqrt(5))/2,n=Math.hypot(1,f);us=[[0,1,f],[1,f,0],[f,0,1]].map(u=>u.map(x=>x/n));c=1/Math.sqrt(5);}
+  const th=2*Math.PI/r,ch2=(1+Math.cos(th))/(1-c),chd=Math.sqrt(ch2),shd=Math.sqrt(ch2-1);
+  const N=us.map(u=>[chd*u[0],chd*u[1],chd*u[2],shd]);
+  const P=[O,foot([N[0]]),foot([N[0],N[1]]),foot(N)];
+  const M=[0,1,2,3].map(k=>{const o=P.filter((_,i)=>i!==k);return orient(planeThrough(...o),P[k]);});
+  const ideal=md(P[3],P[3])>-1e-9;
+  return {M,E1:N[0],E2:orth(N[1],N[0]),V:ideal?[0,0,0,1]:P[3],hasV:!ideal,t:shd/chd,R:M.map(refl)};
+}
+function planeGeom(){
+  const c=Math.cos(2*Math.PI/5),ch2=1/(1-c),chd=Math.sqrt(ch2),shd=Math.sqrt(ch2-1);
+  const a=2*Math.PI/5;
+  const N0=[chd,0,0,shd],N1=[chd*Math.cos(a),chd*Math.sin(a),0,shd];
+  const Mi=foot([N0]),V=foot([N0,N1]),e3=[0,0,1,0];
+  const M=[orient(planeThrough(Mi,V,e3),O),orient(planeThrough(O,V,e3),Mi),orient(planeThrough(O,Mi,e3),V)];
+  return {M,E1:N0,E2:orth(N1,N0),V,R:M.map(refl),delta:Math.acosh(chd)};
+}
+
+// ───────────────────────── WebGL ─────────────────────────
+const canvas=document.getElementById('gl');
+const gl=canvas.getContext('webgl2',{antialias:false,powerPreference:'high-performance'});
+function fail(msg){const d=document.createElement('div');d.id='err';d.innerHTML=msg;document.body.appendChild(d);}
+if(!gl){fail('Этому браузеру не хватает WebGL2.<br>Откройте страницу в свежем Chrome, Firefox, Edge или Safari.');throw new Error('no webgl2');}
+function program(g,fs){
+  const mk=(t,s)=>{const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);
+    if(!g.getShaderParameter(sh,g.COMPILE_STATUS))throw new Error(g.getShaderInfoLog(sh));return sh;};
+  const pr=g.createProgram();g.attachShader(pr,mk(g.VERTEX_SHADER,VS));g.attachShader(pr,mk(g.FRAGMENT_SHADER,fs));g.linkProgram(pr);
+  if(!g.getProgramParameter(pr,g.LINK_STATUS))throw new Error(g.getProgramInfoLog(pr));
+  const loc={};const n=g.getProgramParameter(pr,g.ACTIVE_UNIFORMS);
+  for(let i=0;i<n;i++){const u=g.getActiveUniform(pr,i);const nm=u.name.replace(/\[0\]$/,'');loc[nm]=g.getUniformLocation(pr,u.name);}
+  return {pr,loc};
+}
+const PR={};
+try{ PR.rooms=program(gl,FS_ROOMS); PR.house=program(gl,FS_HOUSE); PR.plane=program(gl,FS_PLANE); PR.flat=program(gl,FS_FLAT); }
+catch(e){fail('Не удалось собрать шейдер:<br><pre style="text-align:left;white-space:pre-wrap;font-size:12px">'+String(e.message).replace(/</g,'&lt;')+'</pre>');throw e;}
+gl.bindVertexArray(gl.createVertexArray());
+
+const mapCanvas=document.getElementById('map');
+const mgl=mapCanvas.getContext('webgl2',{premultipliedAlpha:true,alpha:true});
+let MAP=null;
+if(mgl){try{MAP=program(mgl,FS_MAP);mgl.bindVertexArray(mgl.createVertexArray());}catch(e){MAP=null;}}
+
+function U(P,name,val){const l=P.loc[name];if(l==null)return;
+  if(typeof val==='number')gl.uniform1f(l,val);
+  else if(val.length===2)gl.uniform2fv(l,val);
+  else if(val.length===16&&name!=='uM')gl.uniformMatrix4fv(l,false,val);
+  else gl.uniform4fv(l,val.flat?val.flat():val);}
+
+// ───────────────────────── Камеры ─────────────────────────
+const GEO={}; for(const w of WORLDS) if(w.type==='rooms') GEO[w.id]=roomGeom(w.p,w.r);
+const PL=planeGeom();
+const LN2=Math.LN2, HS=1.0;
+const state={}; let world=WORLDS[0]; let enemy=null;
+function spawnEnemy(w){
+  enemy=null;
+  if(w.type!=='rooms')return;
+  enemy=new Enemy({
+    pos:[0.3,0,0,1], dir:[1,0,0,0],
+    waypoints:[[0.3,0,0,1],[0,0.3,0,1],[-0.3,0,0,1],[0,-0.3,0,1]],
+    fov:75*Math.PI/180, viewDist:6, speed:0.3, turnSpeed:4,
+  });
+}
+
+function initCam(w){
+  if(w.type==='rooms'){
+    const M=I4();boostLocal(M,2,-0.6);boostLocal(M,0,0.12);boostLocal(M,1,0.2);
+    const c={M,G:I4(),cross:0,par:0};foldRooms(c,GEO[w.id]);c.cross=0;
+    c.start=apply(c.G,col(c.M,3));return c;
+  }
+  if(w.type==='house'){const c={X:0.5*HS,Y:0.18*HS,L:0,h:0.26,yaw:Math.PI/2,pitch:0.12};c.start=houseAbs(c);return c;}
+  if(w.type==='plane'){const c={T:I4(),G:I4(),h:0.45,yaw:0.35,pitch:-0.12,par:0};c.start=apply(mul(c.G,c.T),O);return c;}
+  const M=I4();setCol(M,3,[0.5,0.5,-0.1,1]);return {M,abs:[0.5,0.5,-0.1],cross:0,start:[0.5,0.5,-0.1]};
+}
+function foldRooms(c,g){
+  for(let it=0;it<24;it++){let any=false;
+    for(let k=0;k<4;k++){if(md(col(c.M,3),g.M[k])>0){c.M=mul(g.R[k],c.M);c.G=mul(c.G,g.R[k]);if(k===0){c.cross++;c.par^=1;}any=true;}}
+    if(!any)break;}
+}
+function foldPlane(c){
+  for(let it=0;it<24;it++){let any=false;
+    for(let k=0;k<3;k++){if(md(col(c.T,3),PL.M[k])>0){c.T=mul(PL.R[k],c.T);c.G=mul(c.G,PL.R[k]);if(k===0)c.par^=1;any=true;}}
+    if(!any)break;}
+}
+function gsPlane(T){
+  const t=T.slice();for(let c=0;c<4;c++)t[c*4+2]=0;setCol(t,2,[0,0,1,0]);
+  gs(t);setCol(t,2,[0,0,1,0]);for(let c=0;c<4;c++)if(c!==2)t[c*4+2]=0;return t;
+}
+function houseAbs(c){const f=Math.pow(2,c.L);return [c.X*f,c.Y*f,Math.exp(c.h)*f];}
+
+// ───────────────────────── Ввод ─────────────────────────
+const keys=new Set();
+let look=[0,0], joy=[0,0], vbtn=0, moved=false;
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type==='range')return;
+  const k=e.code;
+  if(/^Digit[1-6]$/.test(k)){setWorld(WORLDS[+k.slice(5)-1]);return;}
+  if(k==='KeyR'){resetCam();return;}
+  if(k==='KeyH'){togglePanel();return;}
+  keys.add(k); if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
+});
+addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('blur',()=>keys.clear());
+let dragging=false,last=[0,0];
+canvas.addEventListener('mousedown',e=>{dragging=true;last=[e.clientX,e.clientY];
+  if(!document.pointerLockElement&&canvas.requestPointerLock){try{const r=canvas.requestPointerLock();if(r&&r.catch)r.catch(()=>{});}catch(_){}}});
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{
+  if(document.pointerLockElement===canvas){look[0]+=e.movementX;look[1]+=e.movementY;}
+  else if(dragging){look[0]+=e.clientX-last[0];look[1]+=e.clientY-last[1];last=[e.clientX,e.clientY];}
+});
+const touches=new Map();
+canvas.addEventListener('touchstart',e=>{for(const t of e.changedTouches)touches.set(t.identifier,[t.clientX,t.clientY]);e.preventDefault();},{passive:false});
+canvas.addEventListener('touchmove',e=>{for(const t of e.changedTouches){const p=touches.get(t.identifier);if(p){look[0]+=(t.clientX-p[0])*1.4;look[1]+=(t.clientY-p[1])*1.4;touches.set(t.identifier,[t.clientX,t.clientY]);}}e.preventDefault();},{passive:false});
+canvas.addEventListener('touchend',e=>{for(const t of e.changedTouches)touches.delete(t.identifier);});
+const joyEl=document.getElementById('joy'),knob=document.getElementById('knob');let joyId=null;
+function joyMove(t){const r=joyEl.getBoundingClientRect();let x=t.clientX-r.left-60,y=t.clientY-r.top-60;const l=Math.hypot(x,y);if(l>48){x*=48/l;y*=48/l;}
+  knob.style.transform=`translate(${x}px,${y}px)`;joy=[x/48,-y/48];moved=true;}
+joyEl.addEventListener('touchstart',e=>{const t=e.changedTouches[0];joyId=t.identifier;joyMove(t);e.preventDefault();},{passive:false});
+joyEl.addEventListener('touchmove',e=>{for(const t of e.changedTouches)if(t.identifier===joyId)joyMove(t);e.preventDefault();},{passive:false});
+const joyEnd=e=>{for(const t of e.changedTouches)if(t.identifier===joyId){joyId=null;joy=[0,0];knob.style.transform='';}};
+joyEl.addEventListener('touchend',joyEnd);joyEl.addEventListener('touchcancel',joyEnd);
+for(const [id,dir] of [['bup',1],['bdown',-1]]){const b=document.getElementById(id);
+  b.addEventListener('pointerdown',e=>{vbtn=dir;b.setPointerCapture(e.pointerId);});
+  b.addEventListener('pointerup',()=>vbtn=0);b.addEventListener('pointercancel',()=>vbtn=0);}
+
+// ───────────────────────── Движение ─────────────────────────
+function step(dt){
+  const c=state[world.id];
+  const run=keys.has('ShiftLeft')||keys.has('ShiftRight')?2.6:1;
+  const sp=0.55*run*dt;
+  let f=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)+joy[1];
+  let s=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0)+joy[0];
+  let u=(keys.has('Space')?1:0)-(keys.has('KeyC')||keys.has('ControlLeft')?1:0)+vbtn;
+  const turn=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0);
+  const roll=(keys.has('KeyE')?1:0)-(keys.has('KeyQ')?1:0);
+  const sens=0.0026;
+  let lx=look[0]*sens+turn*1.6*dt, ly=look[1]*sens; look=[0,0];
+  if(f||s||u||lx||ly||roll) moved=true;
+  if(world.type==='rooms'||world.type==='flat'){
+    const M=c.M;
+    if(lx) rotLocal(M,2,0,lx);
+    if(ly) rotLocal(M,2,1,-ly);
+    if(roll) rotLocal(M,0,1,roll*1.2*dt);
+    if(world.type==='rooms'){
+      if(f) boostLocal(M,2,f*sp); if(s) boostLocal(M,0,s*sp); if(u) boostLocal(M,1,u*sp);
+      gs(M); foldRooms(c,GEO[world.id]);
+    }else{
+      const d=[0,1,2].map(i=>M[8+i]*f*sp+M[i]*s*sp+M[4+i]*u*sp);
+      for(let i=0;i<3;i++){c.abs[i]+=d[i];M[12+i]+=d[i];}
+      const old=[M[12],M[13],M[14]].map(Math.floor);
+      for(let i=0;i<3;i++)M[12+i]-=2*Math.floor(M[12+i]/2);
+      const nw=[0,1,2].map(i=>Math.floor(c.abs[i]));
+      c.cross=Math.abs(nw[0]-Math.floor(c.start[0]))+Math.abs(nw[1]-Math.floor(c.start[1]))+Math.abs(nw[2]-Math.floor(c.start[2]));
+      void old; gsFlat(M);
+    }
+  }else{
+    c.yaw-=lx; c.pitch=Math.max(-1.5,Math.min(1.5,c.pitch-ly));
+    const cy=Math.cos(c.yaw),sy=Math.sin(c.yaw);
+    const dx=f*cy+s*sy, dy=f*sy-s*cy;
+    if(world.type==='house'){
+      const Z=Math.exp(c.h);
+      c.X+=dx*sp*Z*HS; c.Y+=dy*sp*Z*HS;
+      c.h+=u*sp;
+      while(c.h>=LN2){c.h-=LN2;c.X/=2;c.Y/=2;c.L++;}
+      while(c.h<0){c.h+=LN2;c.X*=2;c.Y*=2;c.L--;}
+      const W=HS*1048576; if(Math.abs(c.X)>W)c.X-=W*Math.round(c.X/W); if(Math.abs(c.Y)>W)c.Y-=W*Math.round(c.Y/W);
+    }else{
+      const m=Math.hypot(dx,dy);
+      if(m>1e-9){const phi=Math.atan2(dy,dx);c.T=mul(c.T,mul(mul(rotZ(phi),boostX(m*sp/Math.cosh(c.h))),rotZ(-phi)));}
+      if(u){c.h=Math.max(0.05,Math.min(3,c.h+u*sp));syncHeight();}
+      c.T=gsPlane(c.T); foldPlane(c);
+    }
+  }
+  if(enemy&&world.type==='rooms'){
+    const g=GEO[world.id];
+    enemy.update(dt,col(c.M,3),{obstacleMap:p=>roomsObstacleMap(p,g,{tube:0.04,ball:world.p===5?0.085:0.075,lamp:0.06}),time:performance.now()});
+    foldEnemy(enemy.pos,enemy.dir,g);
+  }
+}
+function gsFlat(M){const v=[0,1,2].map(i=>[M[i*4],M[i*4+1],M[i*4+2]]);
+  const nrm=a=>{const l=Math.hypot(...a);return a.map(x=>x/l)},dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  v[0]=nrm(v[0]);v[1]=nrm(v[1].map((x,i)=>x-dot(v[1],v[0])*v[0][i]));
+  v[2]=nrm(v[2].map((x,i)=>x-dot(v[2],v[0])*v[0][i]-dot(v[2],v[1])*v[1][i]));
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)M[i*4+j]=v[i][j];}
+
+function camMatrix(){
+  const c=state[world.id];
+  if(world.type==='rooms'||world.type==='flat')return c.M;
+  if(world.type==='house'){const cx=Math.floor(c.X/HS),cy=Math.floor(c.Y/HS);
+    return mul(mul(parabM(c.X-cx*HS,c.Y-cy*HS),boostZ(c.h)),rotYP(c.yaw,c.pitch));}
+  return mul(mul(c.T,boostZ(c.h)),rotYP(c.yaw,c.pitch));
+}
+
+// ───────────────────────── Кадр ─────────────────────────
+let scale=matchMedia('(pointer:coarse)').matches?0.45:0.7, frameAvg=1/60, lastT=performance.now(), hudT=0;
+const fogEl=document.getElementById('fog'),glassEl=document.getElementById('glass'),hEl=document.getElementById('height');
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  const w=Math.max(160,Math.round(innerWidth*dpr*scale)),h=Math.max(120,Math.round(innerHeight*dpr*scale));
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+}
+function fovTan(){const asp=innerWidth/innerHeight;return Math.tan((asp<1?82:70)*Math.PI/360);}
+function render(){
+  resize();
+  gl.viewport(0,0,canvas.width,canvas.height);
+  const P=PR[world.type]; gl.useProgram(P.pr);
+  const c=state[world.id];
+  U(P,'uRes',[canvas.width,canvas.height]); U(P,'uCam',camMatrix()); U(P,'uTanFov',fovTan());
+  U(P,'uFog',+fogEl.value); U(P,'uGlass',glassEl.checked?1:0);
+  if(world.type==='rooms'){const g=GEO[world.id];
+    U(P,'uM',g.M.flat());U(P,'uE1',g.E1);U(P,'uE2',g.E2);U(P,'uV',g.V);U(P,'uHasV',g.hasV?1:0);
+    U(P,'uBall',world.p===5?0.085:0.075);U(P,'uTube',0.04);U(P,'uParity',world.r%2===0&&world.p===5?1:0);U(P,'uCamPar',c.par);
+    if(enemy){U(P,'uEnemy',enemy.pos);U(P,'uEnemyR',0.09);U(P,'uEnemyAlert',enemy.alert);}
+    else{U(P,'uEnemyR',0.);U(P,'uEnemyAlert',0.);}}
+  else if(world.type==='house'){const cx=Math.floor(c.X/HS),cy=Math.floor(c.Y/HS),m=v=>((v%1024)+1024)%1024;
+    U(P,'uS',HS);U(P,'uCell',[m(cx),m(cy)]);U(P,'uTube',0.022);}
+  else if(world.type==='plane'){U(P,'uM',PL.M.flat());U(P,'uE1',PL.E1);U(P,'uE2',PL.E2);U(P,'uCamPar',c.par);U(P,'uLampH',1.1);U(P,'uTube',0.035);}
+  else{U(P,'uTube',0.04);U(P,'uBall',0.075);}
+  gl.drawArrays(gl.TRIANGLES,0,3);
+  if(world.type==='plane'&&MAP)renderMap(c);
+}
+function renderMap(c){
+  const g=mgl,P=MAP;g.viewport(0,0,mapCanvas.width,mapCanvas.height);g.clearColor(0,0,0,0);g.clear(g.COLOR_BUFFER_BIT);g.useProgram(P.pr);
+  g.uniform2fv(P.loc.uRes,[mapCanvas.width,mapCanvas.height]);
+  g.uniformMatrix4fv(P.loc.uT,false,mul(c.T,rotZ(c.yaw-Math.PI/2)));
+  g.uniform4fv(P.loc.uM,PL.M.flat());g.uniform4fv(P.loc.uV,PL.V);g.uniform1f(P.loc.uCamPar,c.par);
+  g.uniform1f(P.loc.uFovH,2*Math.atan(fovTan()*innerWidth/innerHeight));
+  g.drawArrays(g.TRIANGLES,0,3);
+}
+function updateDanger(){
+  const d=document.getElementById('danger');if(!d)return;
+  let a=0;if(enemy)a=Math.min(1,enemy.alert);
+  d.style.opacity=a.toFixed(3);
+}
+function frame(now){
+  const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
+  step(dt);render();
+  updateDanger();
+  frameAvg=frameAvg*0.92+dt*0.08;
+  if(frameAvg>1/38&&scale>0.3){scale=Math.max(0.3,scale*0.94);frameAvg=1/50;}
+  else if(frameAvg<1/57&&scale<1){scale=Math.min(1,scale*1.03);frameAvg=1/50;}
+  if(now-hudT>120){hudT=now;hud();}
+  requestAnimationFrame(frame);
+}
+
+// ───────────────────────── Интерфейс ─────────────────────────
+const fmt=(x,n=2)=>x.toFixed(n).replace('.',',').replace('-','−');
+const statsEl=document.getElementById('stats');
+function hud(){
+  const c=state[world.id];let rows=[];
+  if(world.type==='rooms'){const a=apply(c.G,col(c.M,3));rows=[['до начала, ρ',fmt(Math.acosh(Math.max(1,-md(a,c.start))))],['переходов через стены',String(c.cross)]];}
+  else if(world.type==='flat'){const d=Math.hypot(...c.abs.map((x,i)=>x-c.start[i]));rows=[['до начала',fmt(d)],['кубов от начала',String(c.cross)]];}
+  else if(world.type==='house'){const a=houseAbs(c),s=c.start,d2=(a[0]-s[0])**2+(a[1]-s[1])**2+(a[2]-s[2])**2;
+    rows=[['до начала, ρ',fmt(Math.acosh(1+d2/(2*a[2]*s[2])))],['этаж',(c.L>0?'+':c.L<0?'−':'')+Math.abs(c.L)],['высота над полом',fmt(c.h)]];}
+  else{const a=apply(mul(c.G,c.T),O),P=2*Math.atan(Math.exp(-c.h));
+    rows=[['до начала по полу',fmt(Math.acosh(Math.max(1,-md(a,c.start))))],['высота h',fmt(c.h)],['Π(h)',fmt(P*180/Math.PI,1)+'°'],['край пола ниже горизонта на',fmt(90-P*180/Math.PI,1)+'°']];}
+  if(enemy){rows.push(['враг',['патруль','подозрение','погоня','поиск','возврат'][enemy.state]]);rows.push(['тревога',fmt(enemy.alert)]);}
+  statsEl.innerHTML=rows.map(([k,v])=>`<span class="k">${k}</span><span class="v">${v}</span>`).join('');
+}
+const worldsEl=document.getElementById('worlds');
+WORLDS.forEach((w,i)=>{const b=document.createElement('button');b.innerHTML=`<kbd>${i+1}</kbd>${w.name.replace(' с прямыми углами','').replace(' с вершинами на абсолюте',' на абсолюте')}`;
+  b.dataset.id=w.id;b.addEventListener('click',()=>setWorld(w));worldsEl.appendChild(b);});
+function setWorld(w){
+  world=w; if(!state[w.id])state[w.id]=initCam(w); spawnEnemy(world);
+  document.getElementById('wname').textContent=w.name;
+  document.getElementById('wsub').textContent=w.sub;
+  document.getElementById('wdesc').textContent=w.desc;
+  document.getElementById('wformula').innerHTML=w.formula;
+  document.getElementById('wtasks').innerHTML=w.tasks.map(t=>`<li>${t}</li>`).join('');
+  for(const b of worldsEl.children)b.setAttribute('aria-pressed',b.dataset.id===w.id);
+  document.getElementById('mapwrap').hidden=w.type!=='plane'||!MAP;
+  document.getElementById('hrow').hidden=w.type!=='plane';
+  fogEl.value=w.fog;syncFog();syncHeight();
+  try{localStorage.setItem('lob-world',w.id);}catch(_){}
+  hud();
+}
+function resetCam(){state[world.id]=initCam(world);syncHeight();}
+function syncFog(){document.getElementById('fout').textContent=fmt(+fogEl.value,1);}
+function syncHeight(){if(world.type!=='plane')return;const c=state[world.id];hEl.value=c.h;document.getElementById('hout').textContent=fmt(c.h);}
+fogEl.addEventListener('input',syncFog);
+hEl.addEventListener('input',()=>{if(world.type==='plane'){state[world.id].h=+hEl.value;syncHeight();}});
+document.getElementById('reset').addEventListener('click',resetCam);
+document.getElementById('fs').addEventListener('click',()=>{try{const r=document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();if(r&&r.catch)r.catch(()=>{});}catch(_){}});
+const panel=document.getElementById('panel'),pt=document.getElementById('ptoggle');
+function togglePanel(){panel.classList.toggle('closed');const open=!panel.classList.contains('closed');pt.setAttribute('aria-expanded',open);pt.querySelector('span').textContent=open?'−':'+';}
+pt.addEventListener('click',togglePanel);
+const coarse=matchMedia('(pointer:coarse)').matches;
+if(coarse||innerWidth<760)togglePanel();
+const hint=document.getElementById('hint');
+hint.textContent=coarse?'Левый круг — идти, ведите пальцем по экрану — смотреть, ▲ ▼ — вверх и вниз'
+  :'Щёлкните по сцене и смотрите мышью · W A S D — идти · Пробел и C — вверх и вниз · Shift — быстрее · Q и E — наклон · R — к началу · 1–6 — миры';
+setInterval(()=>{if(moved)hint.classList.add('gone');},4000);
+
+let startId='dodeca';try{startId=localStorage.getItem('lob-world')||startId;}catch(_){}
+if(location.hash){const h=location.hash.slice(1);if(WORLDS.some(w=>w.id===h))startId=h;}
+setWorld(WORLDS.find(w=>w.id===startId)||WORLDS[0]);
+requestAnimationFrame(frame);
+</script>
+</html>
