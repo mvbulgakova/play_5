@@ -612,6 +612,8 @@ const AU={ctx:null,on:true,drone:null,
   fail(){this.tone(330,1.2,'sawtooth',0.05,110);this.tone(349,1.2,'sawtooth',0.04,98);},
   win(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,0.9,'sine',0.05),i*120));},
   lamp(){this.tone(1800,0.08,'square',0.02,900);},
+  // тема Николая: фраза, которая не возвращается в тонику (концепт, §10)
+  nikolai(){[392,440,523,494,587,554].forEach((f,i)=>setTimeout(()=>this.tone(f,0.7,'sine',0.035),i*170));},
   mirror(){this.tone(990,0.4,'triangle',0.05,1480);this.tone(1485,0.4,'sine',0.03,990);},
   setDrone(alert,active){if(!this.drone)return;const t=this.ctx.currentTime;
     this.drone.gn.gain.setTargetAtTime(active&&this.on?0.018:0,t,0.3);
@@ -913,6 +915,7 @@ const LEVELS={
       // поворот направо на 90° в касательной плоскости равнины (x3 = 0)
       let w=perpAt(f,u,[-u[1],u[0],0,0]);w=tangent([w[0],w[1],0,w[3]],f);const e=md(w,u);w=tangent(w.map((x,i)=>x-e*u[i]),f);
       if(det4([...u,...w,...N3,...f])>0)w=w.map(x=>-x);u=w;}
+    const miss=hyperbolicDistance(O,f);
     const bern=atHeight(f,0.16),gate=advancePose(bern,dirTo(bern,atHeight(O,0.16)),-0.6).p;
     const it=[{id:'st0',kind:15,pos:P(2.2,40),name:'Межевой камень'},{id:'st1',kind:15,pos:P(2.6,160),name:'Межевой камень'},{id:'st2',kind:15,pos:P(2.4,270),name:'Межевой камень'},
       {id:'poincare',kind:2,pos:P(1.4,100,0.3),lemma:'poincare'},{id:'riemann',kind:2,pos:P(3.0,220,0.3),lemma:'riemann'},{id:'pentagon',kind:2,pos:P(1.8,330,0.3),lemma:'pentagon'},
@@ -925,7 +928,7 @@ const LEVELS={
       objectives:S=>{const n=['st0','st1','st2'].filter(k=>S.got[k]).length;return [{t:'Найти межевые камни Эллиптиков ('+n+'/3)',done:n===3},
         {t:'Встретить Бернхарда',done:S.got.bernhard,locked:n<3},{t:'Войти в ворота Цитадели',locked:!S.got.bernhard}];},
       onPick(id){if(id.startsWith('st')&&['st0','st1','st2'].every(k=>S.got[k]))say('stones');},
-      onTalk(id){if(id==='bernhard')scene(CH().scene,()=>{toast('Ворота Цитадели открыты');ui.obj();});},
+      onTalk(id){if(id==='bernhard'){const L=CH().scene.slice();L.splice(1,0,['bernhard',`Четыре стороны по 1,6, четыре прямых поворота — и вы стоите в ${fmt(miss)} от места, где начали. На евклидовой плоскости было бы ровно ноль.`]);scene(L,()=>{toast('Ворота Цитадели открыты');ui.obj();});}},
       marks:S=>{const m=[{p:atHeight(O,0.16),c:'#ece5d6',r:6}];for(const k of ['st0','st1','st2'])if(!S.got[k])m.push({p:S.items.find(i=>i.id===k).pos,c:'#e8b866'});
         if(S.got.st0&&S.got.st1&&S.got.st2&&!S.got.bernhard)m.push({p:bern,c:'#6fd3ff',r:11});if(S.got.bernhard)m.push({p:gate,c:'#ffffff',r:11});return m;},
       start:()=>showPlaque(CH().note),
@@ -1014,7 +1017,7 @@ const css=`
 #mtitle{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-family:var(--display);font-size:52px;letter-spacing:.01em;color:var(--fg);text-shadow:0 2px 20px #000;opacity:0;transition:opacity .8s;text-align:center;white-space:nowrap}
 #mtitle small{display:block;font-family:var(--body);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--brass);margin-bottom:4px}
 #mtitle i{display:block;margin:8px auto 0;width:220px;height:9px;background:linear-gradient(90deg,transparent,var(--brass) 30%,transparent 48%,transparent 52%,var(--brass) 70%,transparent) center/100% 1px no-repeat,radial-gradient(circle,var(--brass) 0 3px,transparent 3.5px) center/9px 9px no-repeat}
-#mplaque{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:min(420px,calc(100vw - 32px));background:radial-gradient(ellipse at top,#1b2038,#0d1020);padding:8px 10px;display:none;line-height:1.55}
+#mplaque{pointer-events:auto!important;position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:min(420px,calc(100vw - 32px));background:radial-gradient(ellipse at top,#1b2038,#0d1020);padding:8px 10px;display:none;line-height:1.55}
 #mplaque .hd{display:flex;gap:12px;align-items:center;margin-bottom:6px}
 #mplaque .portrait{width:64px;height:77px;flex:none}
 #mplaque h4{margin:0;font-family:var(--display);font-size:26px;color:var(--brass);font-weight:400;line-height:1.05}
@@ -1049,6 +1052,9 @@ const css=`
 #mscreen .btn{letter-spacing:.06em;text-transform:uppercase;font-size:11.5px;padding:10px 14px;margin:0 6px 6px 0}
 #mscreen .btn.main{background:linear-gradient(180deg,#f0c983,#c08a45);color:#1a1206;border-color:#f0c983;font-weight:600;box-shadow:0 0 18px rgba(214,163,90,.35)}
 #mscreen .btn:disabled{opacity:.35;cursor:default}
+#mscreen .quiz{border:1px solid var(--line);padding:10px 12px;margin:12px 0}#mscreen .chk{display:flex;flex-direction:column;align-items:flex-start;gap:4px}#mscreen .chk .btn{text-transform:none;letter-spacing:0;font-size:13px;text-align:left}
+#mscreen .gl{margin:8px 0}#mscreen .gl b{font-family:var(--display);font-size:19px;font-weight:400;color:var(--brass)}#mscreen .gl small{color:var(--muted);margin-left:6px}
+#mscreen .card2{border:1px solid var(--line);padding:10px 12px;margin:10px 0;font-size:14px}#mscreen .card2 h4{margin:0 0 6px;font-family:var(--display);font-weight:400;font-size:22px}
 #mscreen details{margin-top:6px;font-size:13px}#mscreen summary{cursor:pointer;color:var(--brass)}
 #mscreen .chlist{display:flex;flex-direction:column;gap:6px;margin:10px 0}
 #mscreen .chlist button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--line);font-family:var(--serif);font-size:16px}
@@ -1081,9 +1087,14 @@ const css=`
 #mtouch{position:absolute;right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(150px + env(safe-area-inset-bottom,0px));display:none;flex-direction:column;gap:10px;pointer-events:auto}
 #mtouch button{width:56px;height:56px;border-radius:50%;border:1px solid var(--line);background:rgba(12,14,28,.65);color:var(--fg);font-size:11px;touch-action:none}
 #mpause{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));pointer-events:auto;display:none}
+#mlect{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(300px,calc(100vw - 32px));background:var(--panel);padding:4px 8px;display:none;font-size:12.5px;line-height:1.5}
+#mlect h5{margin:0 0 4px;font:600 10.5px var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+#mlect .th{font-family:var(--serif);font-size:13.5px;margin-bottom:6px}
+#mlect .rw{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:12px}
 #mtoast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 12px;opacity:0;transition:opacity .4s}
 #mmap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100vw - 32px));aspect-ratio:1;background:rgba(8,12,26,.92);border:1px solid var(--brass);border-radius:50%;display:none;pointer-events:none;z-index:4}
 #mmap.on{display:block}
+@media print{body>*:not(#mscreen){display:none!important}#mscreen{position:static;background:#fff;backdrop-filter:none}#mscreen .card{background:#fff;color:#000;max-height:none;box-shadow:none;border:0}#mscreen .row,#mscreen .btn{display:none}}
 @keyframes p5draw{to{stroke-dashoffset:0}}
 @keyframes p5in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes p5fade{from{opacity:0}to{opacity:1}}
@@ -1103,7 +1114,7 @@ hudEl.innerHTML=`<div id="mlensv"></div><div id="mind"></div>
 <div id="mobj"><div class="ch" id="mchap"></div><div class="rn" id="mroom"></div><ul id="mlist"></ul></div>
 <div id="mbar" class="framed"><div class="lbl"><span>Дефект</span><span id="mmana" class="mono"></span></div><div class="track"><div class="fill" id="mfill"></div></div>
 <div class="ab"><span id="ab-blink"><kbd>ПКМ</kbd>Рывок</span><span id="ab-lens" class="off"><kbd>V</kbd>Линза</span><span id="ab-decoy" class="off"><kbd>G</kbd>Зеркало σ</span><span><kbd>F</kbd>Действие</span></div></div>
-<div id="mprompt"></div><div id="msub"></div><div id="mbark"></div><div id="mtitle"></div><div id="mtoast"></div>
+<div id="mlect" class="framed"></div><div id="mprompt"></div><div id="msub"></div><div id="mbark"></div><div id="mtitle"></div><div id="mtoast"></div>
 <div id="mplaque" class="framed"><div class="hd" id="mpl-hd"></div><p id="mpl-x"></p><div class="k" id="mpl-k"></div></div>
 <div id="mtouch"><button id="mt-blink">Рывок</button><button id="mt-decoy">σ</button><button id="mt-lens">Линза</button><button id="mt-act">F</button></div>
 <button class="btn" id="mpause">II</button>`;
@@ -1135,6 +1146,7 @@ function fresh(chIdx){
     const fwd=lookAt?dirTo(it.pos,lookAt):perpAt(it.pos,[1,0,0,0]);it.F=frameAt(it.pos,fwd,A.kind==='plane'?[0,0,1,0]:null);
     it.room=A.ROOMS?A.roomOf(it.pos):-1;it.light=A.kind==='rooms'&&it.room>=0?A.ROOMS[it.room].c:(A.kind==='flat'?null:advancePose(it.pos,A.up(it.pos),0.55).p);});
   s.guards=LV.guards.map((g,i)=>new Guard(g,i));
+  s.start=A.pos();
   return s;}
 function serialize(){return JSON.stringify({v:2,ch:S.ch,c:S.c,mana:S.mana,abil:S.abil,got:S.got,lit:S.lit,
   guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags});}
@@ -1190,7 +1202,7 @@ function doDecoy(){if(!S.abil.decoy){toast('Зеркала σ ещё нет');re
   if(S.mana<DECOY_COST){toast('Не хватает дефекта');return;}
   S.mana-=DECOY_COST;let pt=b.pt;if(S.A.constrain)pt=S.A.constrain(pt);S.decoy={pos:pt,t:6,F:frameAt(pt,dirTo(pt,S.A.pos()),S.A.kind==='plane'?[0,0,1,0]:null),nt:0};
   AU.mirror();kasselFeels();}
-function noise(at,loud){for(const G of S.guards){if(G.sleep)continue;const d=hyperbolicDistance(G.pos,at),sh=Math.sinh(d),h=loud/(1+sh*sh);
+function noise(at,loud){if(campaign.lecturer)return;for(const G of S.guards){if(G.sleep)continue;const d=hyperbolicDistance(G.pos,at),sh=Math.sinh(d),h=loud/(1+sh*sh);
   if(h>0.08){G.alert=clamp(G.alert+0.6*h,0,1);G.heard=at.slice();if(G.state==='patrol'&&G.alert>0.15){G.state='suspect';G.timer=0;G.goal=at.slice();G.scan=null;bark(G,'suspect');}}}}
 function visibleItems(){return S.items.filter(it=>!S.got[it.id]&&(!it.cond||it.cond(S)));}
 function interactTarget(){const A=S.A,p=A.pos();
@@ -1215,8 +1227,8 @@ function interact(){const t=interactTarget();if(!t||t.type==='none')return;
     ui.obj();LV.onPick&&LV.onPick(it.id);}
   else if(t.type==='lamp'){S.lit[t.r]=!S.lit[t.r];AU.lamp();}}
 function showPlaque(L,by){$('mpl-hd').innerHTML=(by?PORTRAITS.svg(by,'portrait'):'')+`<div><h4>${L.t}</h4>${by?`<div class="by">${PORTRAITS.info(by).name} · ${PORTRAITS.info(by).sub}</div>`:''}</div>`;
-  $('mpl-x').innerHTML=L.x;$('mpl-k').textContent=by?'Лемма записана в журнал (Esc → Леммы)':'';$('mplaque').style.display='block';S.plaqueT=13;}
-function showLemma(id){const L=STORY.lemmas[id];if(L)showPlaque(L,L.by);}
+  $('mpl-x').innerHTML=L.x+(L.pr?`<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brass);font-size:12px">Доказательство в строку</summary><span style="font-size:13.5px">${L.pr}</span></details>`:'');$('mpl-k').textContent=by?'Лемма записана в журнал (Esc → Леммы)':'';$('mplaque').style.display='block';S.plaqueT=13;}
+function showLemma(id){const L=STORY.lemmas[id];if(L)showPlaque({...L,pr:(STORY.proofs||{})[id]},L.by);}
 function readInput(dt){
   const run=keys.has('ShiftLeft')||keys.has('ShiftRight');
   const f=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)+joy[1];
@@ -1243,13 +1255,13 @@ function update(dt){
   S.maxA=maxA;
   for(const it of visibleItems())if(it.kind===5&&A.dist(p,it.pos)<0.22){
     if(!it.exit||it.exit(S))completeChapter();else say('early');}
-  if(S.subs.length){const sub=S.subs[0];if(!sub.shown){sub.shown=1;const inf=sub.who==='—'?null:PORTRAITS.info(sub.who);
+  if(S.subs.length){const sub=S.subs[0];if(!sub.shown){sub.shown=1;if(sub.who==='nikolai'&&!S.flags.motif){S.flags.motif=1;AU.nikolai();}const inf=sub.who==='—'?null:PORTRAITS.info(sub.who);
       $('msub').innerHTML=`${inf?PORTRAITS.svg(sub.who,'portrait'):''}<div class="tx">${inf?`<span class="who">${inf.name}</span>`:''}${sub.text}</div>`;$('msub').style.opacity=1;}
     sub.dur-=dt;if(sub.dur<=0){S.subs.shift();$('msub').style.opacity=0;}}
   if(S.plaqueT>0){S.plaqueT-=dt;if(S.plaqueT<=0)$('mplaque').style.display='none';}
 }
 function updateGuard(G,dt,p,lightF,motionF){
-  const sc=G.perceive(p,lightF,motionF);G.sees=sc;
+  const sc=campaign.lecturer?0:G.perceive(p,lightF,motionF);G.sees=sc;
   if(sc>0){G.alert=clamp(G.alert+dt*RATE*sc*(G.kassel?1.3:1),0,1);G.lastSeen=p.slice();G.seenAgo=0;}
   else{G.seenAgo+=dt;G.alert=clamp(G.alert-dt*(G.state==='chase'?0.10:0.22),0,1);}
   if(S.decoy&&G.state!=='chase'){const dsc=G.perceive(S.decoy.pos,1,1);if(dsc>0){G.alert=Math.min(0.9,G.alert+dt*RATE*dsc);G.goal=S.decoy.pos.slice();
@@ -1291,8 +1303,9 @@ function completeChapter(){if(S.over)return;S.over=true;AU.win();
   const tm=Math.floor(S.time/60)+':'+String(Math.floor(S.time%60)).padStart(2,'0');
   const lem=S.items.filter(i=>i.kind===2),lg=lem.filter(i=>S.got[i.id]).length;
   const rank=st.alerts===0&&st.sleeps===0?'Призрак: вас не видели, никто не усыплён':st.alerts===0?'Тень: ни одной тревоги':st.alerts<3?'Свидетели есть, но вы ушли':'Тревога гремит до самого Собора';
-  const nx=CHS[S.ch+1];
+  const nx=CHS[S.ch+1];const ck=(STORY.checks||{})[CH().id];
   screenShow(`<div class="ch">${CH().n} · пройдена</div><h2>${CH().title}</h2><p>${CH().end}</p>
+  ${ck?`<div class="check"><div class="ch">Проверка</div><p><b>${ck.q}</b></p><div class="chk">${ck.a.map((t,i)=>`<button class="btn" data-a="check" data-i="${i}">${t}</button>`).join('')}</div><p class="ce" hidden></p></div>`:''}
   ${S.guards.length?`<div class="rank">${rank}</div>`:''}
   <div class="stats"><span>Время</span><span>${tm}</span>${S.guards.length?`<span>Тревоги</span><span>${st.alerts}</span><span>Усыплено стражей</span><span>${st.sleeps}</span><span>Найдено спящих</span><span>${st.bodies}</span>`:''}
   <span>Леммы главы</span><span>${lg} / ${lem.length}</span><span>Леммы всего</span><span>${Object.keys(campaign.lemmas).length} / ${Object.keys(STORY.lemmas).length}</span></div>
@@ -1350,8 +1363,17 @@ function hud(){
       const ar=Math.asin(clamp(Math.sinh(0.13)/Math.sinh(Math.max(d,0.15)),0,1));
       e.style.display='block';e.style.left=(W/2+(x/z)/tf*H/2)+'px';e.style.top=(H/2-(y/z)/tf*H/2-Math.tan(ar)/tf*H/2-8)+'px';
       e.className='gi'+(G.state==='chase'?' chase':'')+(G.kassel?' k':'');e.firstChild.style.height=(G.state==='chase'?100:G.alert*100).toFixed(0)+'%';});}
+  lectHUD();
   if(mapOn)drawMap();
 }
+function lectHUD(){const e=$('mlect');if(!campaign.lecturer||S.over){e.style.display='none';return;}
+  const A=S.A,p=A.pos(),card=(STORY.cards||[]).find(c=>c.ch===CH().id)||{};const rows=[];
+  rows.push(['до старта',fmt(A.dist(p,S.start))]);
+  if(A.kind==='rooms'){rows.push(['переходов через грани',String(S.c.cross)]);rows.push(['многогранников у ребра',CH().id==='ch5'?'5 (угол 72°)':'4 (угол 90°)']);}
+  if(A.kind==='house'){rows.push(['этаж',String(S.c.L)]);rows.push(['масштаб этажа',String(2**S.c.L)+'×']);rows.push(['высота над полом',fmt(S.c.h)+' из ln 2 ≈ 0,69']);}
+  if(A.kind==='plane'){const P=2*Math.atan(Math.exp(-S.c.h));rows.push(['высота h',fmt(S.c.h)]);rows.push(['Π(h)',fmt(P*180/Math.PI,1)+'°']);}
+  if(A.kind==='flat')rows.push(['сумма углов грани','360°']);
+  e.innerHTML=`<h5>Режим «Лектор» · стражи не видят</h5><div class="th">${card.theorem||''}</div>`+rows.map(([k,v])=>`<div class="rw"><span>${k}</span><span>${v}</span></div>`).join('');e.style.display='block';}
 function drawMap(){const x=mapC.getContext('2d'),W=mapC.width,R=W*0.46;x.clearRect(0,0,W,W);
   const A=S.A;x.font='500 26px IBM Plex Sans, sans-serif';x.textAlign='center';x.fillStyle='rgba(236,229,214,.6)';
   if(!A.ROOMS){x.fillText(A.kind==='plane'?'Карта — справа внизу':'Планшет здесь не работает',W/2,W/2);return;}
@@ -1381,22 +1403,31 @@ function title(){
   screenShow(`<div class="crest">${emblemSVG()}<div class="wordmark">${FONT.svg('Пятый Постулат',{h:'58px',weight:1.35})}</div><div class="ch">игра о геометрии Лобачевского</div></div>
   <p style="text-align:center">В городе, где Церковь Евклида силой удерживает пространство плоским, архитектор-чертёжница получает Линзу Абсолюта — и видит, что весь мир построен на лжи.</p>
   <div class="row" style="text-align:center">${campaign.unlocked>0||hasSave()?`<button class="btn main" data-a="continue_c">Продолжить${hasSave()?'':': '+CHS[cur].n}</button>`:''}<button class="btn${campaign.unlocked>0||hasSave()?'':' main'}" data-a="new">Новая игра</button>
-  <button class="btn" data-a="chapters">Главы</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="gallery">Портретная галерея</button><button class="btn" data-a="quit">Прогулка по мирам</button></div>`);}
+  <button class="btn" data-a="chapters">Главы</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="glossary">Глоссарий</button><button class="btn" data-a="gallery">Портретная галерея</button><button class="btn" data-a="history">Как было на самом деле</button><button class="btn" data-a="teacher">Для учителя${campaign.lecturer?' · Лектор':''}</button><button class="btn" data-a="quit">Прогулка по мирам</button></div>`);}
+function backBtn(){return `<div class="row"><button class="btn" data-a="${S&&!S.over&&active&&S.time>0?'resume':'title'}">Назад</button></div>`;}
+function glossary(){screenShow(`<div class="ch">Справочник</div><h2>Глоссарий</h2>${STORY.glossary.map(g=>`<div class="gl"><b>${g.t}</b>${g.ref?`<small>курсовая, ${g.ref}</small>`:''}<p>${g.d}</p></div>`).join('')}${backBtn()}`);}
+function historyScr(){screenShow(`<div class="ch">Историческая справка</div><h2>Как было на самом деле</h2><p>Игра — вымысел, но леммы, даты и цитаты в ней настоящие. Вот где вымысел, а где история.</p>${STORY.history.map(h=>`<div class="card2"><p><i>В игре:</i> ${h.f}</p><p><b>На самом деле:</b> ${h.h}</p></div>`).join('')}${backBtn()}`);}
+function teacher(){screenShow(`<div class="ch">Педагогический слой</div><h2>Для учителя</h2>
+  <p>Режим «Лектор» отключает стелс (стражи не замечают игрока) и выводит на экран теорему главы и живые измерения — расстояние до старта, этаж и масштаб, Π(h). Удобно показывать на уроке через проектор.</p>
+  <div class="row"><button class="btn main" data-a="lect">Режим «Лектор»: ${campaign.lecturer?'включён':'выключен'}</button><button class="btn" data-a="print">Распечатать карточки</button></div>
+  <h3 style="font:600 11px var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-top:16px">Методические карточки</h3>
+  ${STORY.cards.map(c=>{const ch=CHS.find(x=>x.id===c.ch);return `<div class="card2"><h4>${ch.n}. ${ch.title}</h4><p><b>Цель:</b> ${c.goal}</p><p><b>Теорема:</b> ${c.theorem}</p><p><b>Что наблюдать:</b> ${c.observe}</p><p><b>Вопросы для обсуждения:</b></p><ul>${c.questions.map(q=>`<li>${q}</li>`).join('')}</ul><p><b>Связь с курсовой:</b> ${c.ref||'—'}. <b>Мир для самостоятельной прогулки:</b> ${c.world}.</p></div>`;}).join('')}
+  ${backBtn()}`);}
 function chapters(){screenShow(`<div class="ch">Пятый Постулат</div><h2>Главы</h2><div class="chlist">${CHS.map((c,i)=>`<button data-a="brief" data-ch="${i}" ${i>campaign.unlocked?'disabled':''}><span>${c.title}</span><small>${c.n}</small></button>`).join('')}</div>
   <div class="row"><button class="btn" data-a="title">Назад</button></div>`);}
 function lemmas(){const ids=Object.keys(STORY.lemmas);const got=ids.filter(k=>campaign.lemmas[k]);
   screenShow(`<div class="ch">Журнал</div><h2>Леммы · ${got.length} из ${ids.length}</h2>
-  ${got.length?got.map(k=>{const L=STORY.lemmas[k],P=PORTRAITS.info(L.by);return `<div class="lem">${PORTRAITS.svg(L.by,'portrait')}<div><b>${L.t}</b><div style="font-size:11px;color:var(--muted)">${P.name} · ${P.sub}</div><p>${L.x}</p></div></div>`;}).join(''):'<p>Пока ни одной. Леммы — золотые точки, чаще всего в тёмных комнатах.</p>'}
+  ${got.length?got.map(k=>{const L=STORY.lemmas[k],P=PORTRAITS.info(L.by);return `<div class="lem">${PORTRAITS.svg(L.by,'portrait')}<div><b>${L.t}</b><div style="font-size:11px;color:var(--muted)">${P.name} · ${P.sub}</div><p>${L.x}</p>${STORY.proofs&&STORY.proofs[k]?`<details><summary>Доказательство в строку</summary><p>${STORY.proofs[k]}</p></details>`:''}</div></div>`;}).join(''):'<p>Пока ни одной. Леммы — золотые точки, чаще всего в тёмных комнатах.</p>'}
   <div class="row"><button class="btn" data-a="${S&&!S.over&&active&&S.time>0?'resume':'title'}">Назад</button></div>`);}
 function gallery(){const P=PORTRAITS.list;const hist=new Set(Object.values(STORY.lemmas).filter((_,i)=>true).map(l=>l.by));
   const owned=new Set(Object.keys(campaign.lemmas).map(k=>STORY.lemmas[k].by));
   const cast=['vera','nikolai','ortt','kassel','oricycla','bernhard','euclid','guard'];
   screenShow(`<div class="ch">Бронзированные силуэты</div><h2>Портретная галерея</h2>
-  <p>Силуэтный профиль был любимым портретным жанром 1820–1840-х — эпохи Лобачевского, Бойяи и Гаусса. Исторические портреты открываются вместе с их леммами.</p>
+  <p>Силуэтный профиль был любимым портретным жанром 1820–1840-х — эпохи Лобачевского, Бойяи и Гаусса. Силуэты стилизованы по мотивам известных портретов; где подлинного изображения нет, это отмечено. Исторические портреты открываются вместе с их леммами.</p>
   <h3 style="font:600 11px var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--brass)">Действующие лица</h3>
   <div class="gallery">${cast.map(id=>`<figure>${PORTRAITS.svg(id,'')}<figcaption><b>${P[id].name}</b><span>${P[id].sub}</span></figcaption></figure>`).join('')}</div>
   <h3 style="font:600 11px var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--brass)">Геометры</h3>
-  <div class="gallery">${[...hist].map(id=>{const o=owned.has(id);return `<figure class="${o?'':'lock'}">${PORTRAITS.svg(id,'')}<figcaption><b>${o?P[id].name:'???'}</b><span>${o?P[id].sub:'найдите лемму'}</span></figcaption></figure>`;}).join('')}</div>
+  <div class="gallery">${[...hist].map(id=>{const o=owned.has(id);return `<figure class="${o?'':'lock'}">${PORTRAITS.svg(id,'')}<figcaption><b>${o?P[id].name:'???'}</b><span>${o?P[id].sub:'найдите лемму'}</span>${o&&P[id].cond?`<span style="display:block;font-size:11px;font-style:italic">${P[id].cond}</span>`:''}</figcaption></figure>`;}).join('')}</div>
   <div class="row"><button class="btn" data-a="title">Назад</button></div>`);}
 function brief(i){const c=CHS[i];
   screenShow(`<div class="crest">${i===0?emblemSVG():''}<span class="fxl">${FONT.svg(c.n,{h:'30px'})}</span><h2>${c.title}</h2></div>${c.brief.map(x=>`<p>${x}</p>`).join('')}
@@ -1423,7 +1454,14 @@ function act(a,ds){AU.init();
   else if(a==='load'){if(load())begin();}
   else if(a==='save')save();
   else if(a==='sound'){AU.on=!AU.on;pause();}
-  else if(a==='quit')exit();}
+  else if(a==='quit')exit();
+  else if(a==='check'){const ck=STORY.checks[CH().id],ok=+ds.i===ck.ok,e=screen.querySelector('.ce');e.hidden=false;e.innerHTML=(ok?'<b style="color:#9fdc8a">Верно.</b> ':'<b style="color:#ff8a6a">Не совсем.</b> ')+ck.e;
+    screen.querySelectorAll('[data-a=check]').forEach(b=>{b.disabled=true;if(+b.dataset.i===ck.ok)b.classList.add('main');});if(ok){campaign.checks={...(campaign.checks||{}),[CH().id]:1};saveCampaign();}}
+  else if(a==='glossary')glossary();
+  else if(a==='history')historyScr();
+  else if(a==='teacher')teacher();
+  else if(a==='lect'){campaign.lecturer=!campaign.lecturer;saveCampaign();teacher();}
+  else if(a==='print'){window.print();}}
 function begin(){S.paused=false;S.over=false;S.room=-1;screenHide();ui.obj();$('mplaque').style.display='none';$('msub').style.opacity=0;
   document.getElementById('mapwrap').hidden=S.A.kind!=='plane';document.getElementById('mapwrap').style.visibility=S.A.kind==='plane'?'visible':'hidden';lock();}
 function open(){const bad=['rooms','house','plane','flat'].filter(k=>!PROG[k]);if(bad.length){alert('Шейдеры не собрались: '+bad.join(', ')+'\n'+(PROG[bad[0]+'_err']||'').toString().slice(0,400));return;}
