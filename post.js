@@ -44,7 +44,7 @@ vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.,1.);
 vec3 SC(vec2 uv){ return dec(texture(uScene,uv).rgb); }
 // Фильтр Кувахары по четырём квадрантам: берём квадрант с наименьшей дисперсией.
 vec3 kuwahara(vec2 uv,float far){
-  vec2 d=uSceneTexel*uKuw*(0.85+1.5*far);
+  vec2 d=uSceneTexel*uKuw*(0.6+1.75*far);
   vec3 m[4]; vec3 s[4];
   for(int k=0;k<4;k++){ m[k]=vec3(0.); s[k]=vec3(0.); }
   for(int j=0;j<=2;j++) for(int i=0;i<=2;i++){

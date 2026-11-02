@@ -1107,7 +1107,7 @@ vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.,1.);
 vec3 SC(vec2 uv){ return dec(texture(uScene,uv).rgb); }
 // Фильтр Кувахары по четырём квадрантам: берём квадрант с наименьшей дисперсией.
 vec3 kuwahara(vec2 uv,float far){
-  vec2 d=uSceneTexel*uKuw*(0.85+1.5*far);
+  vec2 d=uSceneTexel*uKuw*(0.6+1.75*far);
   vec3 m[4]; vec3 s[4];
   for(int k=0;k<4;k++){ m[k]=vec3(0.); s[k]=vec3(0.); }
   for(int j=0;j<=2;j++) for(int i=0;i<=2;i++){
@@ -2007,9 +2007,17 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float ring=sdTorZ(c,0.040,0.0055), glass=sdEll(c,vec3(0.036,0.036,0.004));
     float h=sdCaps(q,vec3(0,-0.026,0),vec3(0,-0.075,0),0.0055), knob=sdSph(q-vec3(0,-0.08,0),0.008);
     float d=min(min(ring,h),knob); m=2; if(glass<d){d=glass;m=6;} return d; }
-  if(kind==4){ q.xz=rot(sin(uTime*0.7)*0.5)*q.xz; vec3 r=q; r.z+=6.*r.x*r.x;
-    float pap=sdBox(r,vec3(0.032,0.044,0.0008))-0.0005, seal=sdEll(r-vec3(0.016,-0.028,0.002),vec3(0.008,0.008,0.0025));
-    if(seal<pap){m=7;return seal;} m=8; return pap*0.8; }
+  if(kind==4){ // лист: сложен втрое, изогнут, загнутый угол, надорванные края, сургучная печать
+    q.xz=rot(sin(uTime*0.7)*0.35)*q.xz; vec3 r=q; const vec2 WH=vec2(0.042,0.056);
+    r.z+=3.6*r.x*r.x-0.003+0.0012*sin(uTime*1.6+r.y*60.)*smoothstep(0.,WH.y,r.y);   // изгиб и колыхание
+    float fy=(r.y+WH.y)/(2.*WH.y/3.); r.z+=0.0026*(1.-2.*abs(fract(fy)-0.5));            // заломы сгибов
+    float cr=max(0.,r.x/WH.x-r.y/WH.y-1.25); r.z-=0.03*cr*cr;                            // загнутый угол
+    float torn=(vnoise(vec3(r.xy*190.,3.1))-0.5)*0.0016+(vnoise(vec3(r.xy*620.,1.3))-0.5)*0.0006;
+    float e2=max(abs(r.x)-WH.x,abs(r.y)-WH.y)+torn;
+    float pap=max(e2,abs(r.z)-0.0005)*0.7;
+    vec3 sq=r-vec3(0.027,-0.044,0.0012); float seal=sdEll(sq,vec3(0.0085,0.0085,0.0022)); seal=max(seal,-(sdTorZ(sq-vec3(0,0,0.0024),0.0052,0.0005)));  // ободок оттиска
+    seal=smin(seal,sdEll(sq-vec3(0.006,-0.004,-0.0006),vec3(0.005,0.0035,0.0012)),0.002);    // капля сургуча
+    if(seal<pap){m=7;return seal;} m=8; return pap; }
   if(kind==2){ float core=sdSph(q,0.011);
     vec3 r=q; r.xz=rot(uTime*1.3)*r.xz; r.yz=rot(0.6)*r.yz;
     vec3 s=q; s.xy=rot(uTime*0.9)*s.xy; s.xz=rot(1.2)*s.xz;
@@ -2052,6 +2060,52 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float d=min(board,top); m=16; if(legs<d){d=legs;m=16;} if(arm<d){d=arm;m=2;} if(lmp<d){d=lmp;m=15;} if(paper<d){d=paper;m=18;} return d; }
   m=0; return sdSph(q,0.03);
 }
+// Бумага листа: пергамент, рукопись, чертёж в круге Кэли — Клейна, подпись, клякса; vr==1 — лист вычеркнутых
+float h21(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void paperMat(vec3 q,int vr,out vec3 base,out float rough,out vec3 emis){
+  vec3 r=q; r.xz=rot(sin(uTime*0.7)*0.35)*r.xz; vec2 uv=r.xy; const vec2 WH=vec2(0.042,0.056);
+  vec2 n2=uv/WH; float edge=1.-max(abs(n2.x),abs(n2.y));
+  vec3 parch=vec3(0.80,0.71,0.54)*(0.86+0.2*fbm(vec3(uv*170.,2.)))*(0.95+0.08*vnoise(vec3(uv.x*900.,uv.y*60.,1.)));  // волокно
+  float stain=smoothstep(0.55,0.85,fbm(vec3(uv*55.,5.)));
+  parch=mix(parch,vec3(0.66,0.50,0.30),clamp(smoothstep(0.16,0.0,edge)*0.6+stain*0.28,0.,1.));   // старение краёв, пятна
+  vec2 fc=floor(uv*900.); parch=mix(parch,vec3(0.55,0.35,0.18),step(0.9985,h21(fc))*0.7);       // «лисьи» точки
+  float fold=abs(fract((uv.y+WH.y)/(2.*WH.y/3.)+0.5)-0.5); parch*=1.-0.18*(1.-smoothstep(0.0,0.03,fold)); // тень сгиба
+  vec3 inkC=vec3(0.07,0.05,0.09); float ink=0.;
+  // шапка документа
+  float hy=uv.y-0.044; ink=max(ink,(1.-smoothstep(0.0004,0.0009,abs(hy-0.0012*sin(uv.x*900.)*step(0.5,h21(floor(vec2(uv.x*300.,3.)))))))*step(abs(uv.x),0.024));
+  ink=max(ink,(1.-smoothstep(0.0003,0.0006,abs(uv.y-0.0395)))*step(abs(uv.x),0.03)*0.8);
+  // строки курсива
+  float lh=0.0046, ly=(0.036-uv.y)/lh, row=floor(ly), fyy=fract(ly);
+  if(row>=0.&&row<(vr==1?9.:11.)&&abs(uv.x)<0.034){
+    float len=0.034-0.03*step(0.72,h21(vec2(row,7.)))*h21(vec2(row,9.)), ind=row==0.||h21(vec2(row,2.))>0.85? 0.006:0.;
+    // курсив: буквы-глифы (петля, высокий штрих, подстрочный, арка) с наклоном и соединениями
+    const float cw=0.00135; float wx=uv.x/0.0071, word=step(0.15,h21(vec2(row,floor(wx)))), gap=step(0.12,fract(wx))*step(fract(wx),0.97);
+    float yl=(0.6-fyy)*lh, xs=uv.x+yl*0.38, ci=floor(xs/cw), xl=(fract(xs/cw)-0.5)*cw, g=h21(vec2(row*13.,ci));
+    float dd;
+    if(g<0.38) dd=abs(length(vec2(xl,yl*1.15))-0.00042);
+    else if(g<0.55) dd=length(vec2(xl+0.00018,max(abs(yl-0.00062)-0.00095,0.)));
+    else if(g<0.66) dd=length(vec2(xl+0.00018,max(abs(yl+0.0006)-0.00095,0.)));
+    else if(g<0.88) dd=max(abs(length(vec2(xl,yl+0.00025))-0.00045),-(yl+0.00025));
+    else dd=min(abs(length(vec2(xl,yl*1.15))-0.00042),length(vec2(xl-0.0003,max(abs(yl-0.00062)-0.00095,0.))));
+    dd=min(dd,abs(yl+0.00042-0.00025*sin(xl/cw*3.14159))+step(0.00062,abs(xl))*1.);                 // соединения по линии письма
+    float st=(1.-smoothstep(0.00015,0.00032,dd))*word*gap*step(uv.x,len)*step(-0.034+ind,uv.x);
+    ink=max(ink,st*0.95);
+    if(vr==1&&h21(vec2(row,5.))>0.45&&uv.x<len){ float sk=1.-smoothstep(0.022,0.045,abs(fyy-0.58-0.05*sin(uv.x*500.+row))); if(sk>0.2){ inkC=mix(inkC,vec3(0.50,0.02,0.03),sk); ink=max(ink,sk);} } // красные зачёркивания
+  }
+  // чертёж: абсолют, хорда, треугольник, полюс
+  vec2 dc=uv-vec2(-0.016,-0.030); float R=0.0125;
+  float dr=max(1.-smoothstep(0.0003,0.0007,abs(length(dc)-R)),0.);
+  vec2 A=R*vec2(cos(2.4),sin(2.4)), B=R*vec2(cos(-0.4),sin(-0.4));
+  vec2 pa=dc-A, ba=B-A; float hc=clamp(dot(pa,ba)/dot(ba,ba),0.,1.); dr=max(dr,1.-smoothstep(0.0002,0.0006,length(pa-ba*hc)));
+  vec2 T0=vec2(-0.004,-0.006),T1=vec2(0.006,-0.003),T2=vec2(0.0,0.005);
+  for(int i=0;i<3;i++){ vec2 a=i==0?T0:i==1?T1:T2, b=i==0?T1:i==1?T2:T0; vec2 p2=dc-a, ab=b-a; float hh=clamp(dot(p2,ab)/dot(ab,ab),0.,1.); dr=max(dr,1.-smoothstep(0.00015,0.0005,length(p2-ab*hh))); }
+  ink=max(ink,dr*0.85*step(-0.045,uv.y));
+  // подпись-росчерк и клякса
+  vec2 sg=uv-vec2(0.008,-0.046); ink=max(ink,(1.-smoothstep(0.0003,0.0007,abs(sg.y-0.0025*sin(sg.x*1300.)*exp(-abs(sg.x)*120.)-0.002*sg.x/0.01)))*step(abs(sg.x),0.009));
+  float blot=length((uv-vec2(-0.03,0.012))*vec2(1.,1.3))-0.0018-0.0007*sin(atan(uv.y-0.012,uv.x+0.03)*7.); ink=max(ink,1.-smoothstep(-0.0002,0.0003,blot));
+  base=mix(parch,inkC,clamp(ink*1.05,0.,1.)); rough=mix(0.88,0.45,ink);
+  emis=parch*0.025;                                                      // просвечивает на свету
+}
 // материалы объектов: m — номер материала фигуры, vr — вариант персонажа
 void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out vec3 base,out float metal,out float rough,out vec3 emis){
   base=vec3(0.5); metal=0.; rough=0.6; emis=vec3(0.);
@@ -2069,9 +2123,12 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
   else if(mm==15){ base=vec3(0.1); emis=vec3(1.0,0.78,0.45)*(3.0+0.6*sin(uTime*9.)); }
   else if(mm==4){ base=vec3(0.02); rough=0.1; emis= sl>.5? vec3(0.) : mix(vec3(1.,0.72,0.28),vec3(1.,0.12,0.05),par)*(3.5+1.5*sin(uTime*6.)*par); }
   else if(mm==6){ base=vec3(0.05,0.08,0.12); rough=0.05; emis=vec3(0.25,0.55,1.0)*(0.5+2.2*pow(1.-f,3.)); }
-  else if(mm==7){ base=vec3(0.45,0.05,0.04); rough=0.35; }
-  else if(mm==8){ base=vec3(0.86,0.80,0.66); rough=0.9;
-    if(abs(q.x)<0.024&&q.y>-0.02&&q.y<0.036&&fract(q.y*110.)<0.3) base=vec3(0.22,0.18,0.14); emis=base*0.06; }
+  else if(mm==7){ vec3 r=q; r.xz=rot(sin(uTime*0.7)*0.35)*r.xz; vec2 sp=r.xy-vec2(0.027,-0.044); float rr=length(sp);
+    base=vec3(0.48,0.05,0.04)*(0.75+0.45*fbm(vec3(sp*900.,2.))); rough=0.3;
+    float an=atan(sp.y,sp.x), pent=rr*cos(3.14159/5.)/cos(mod(an+1.5708,1.2566)-0.6283);             // пятиугольник — герб Криволинейных
+    float emb=max(1.-smoothstep(0.0003,0.0006,abs(rr-0.0052)),1.-smoothstep(0.00025,0.0005,abs(pent-0.0028)));
+    base*=1.-0.5*emb; base+=vec3(0.25,0.06,0.04)*pow(max(0.,1.-rr/0.008),3.)*0.4; rough=mix(0.28,0.6,emb); }
+  else if(mm==8){ paperMat(q,vr,base,rough,emis); }
   else if(mm==9){ base=vec3(0.2); emis=vec3(1.0,0.75,0.32)*(2.5+1.2*sin(uTime*3.)); }
   else if(mm==10){ base=vec3(0.30,0.15,0.55); rough=0.12; emis=vec3(0.55,0.25,1.0)*(0.5+0.8*pow(1.-f,2.))*(1.+0.4*sin(uTime*4.)); }
   else if(mm==11){ float sw=fbm(vec3(q.xy*28.+vec2(sin(uTime*0.3),cos(uTime*0.27)),uTime*0.25));
@@ -2608,7 +2665,7 @@ const AU={ctx:null,on:true,drone:null,
 
 // ═══════════════ адаптеры геометрий ═══════════════
 const LN2=Math.LN2;
-const BOUND={21:0.06,20:0.1,19:0.1,18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
+const BOUND={21:0.06,20:0.1,19:0.1,18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.085,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
 // базовые операции в пространстве Лобачевского
 const HYP={dist:hyperbolicDistance,dirTo,advance:(p,u,s)=>advancePose(p,u,s)};
 
@@ -3813,7 +3870,7 @@ function objects(){const out=[];
     out.push({pos:p2,F:frameAt(p2,d2),kind:S.lensOn?10:1,vr:S.lensOn?4:G.vr,par:0,lit:1,light:advancePose(p2,S.A.up(p2),0.55).p});}}
   if(S.decoy)out.push({pos:S.decoy.pos,F:S.decoy.F,kind:10,vr:4,lit:1,light:advancePose(S.decoy.pos,S.A.up(S.decoy.pos),0.5).p});
   for(const it of visibleItems()){const on=it.kind===5?(it.exit&&!it.exit(S)?0:1):it.kind===17?(S.flags[it.puzzle+'Done']?1:0):0;
-    out.push({pos:it.pos,F:it.F,dirE:it.dirE,kind:it.kind,par:it.par??on,vr:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
+    out.push({pos:it.pos,F:it.F,dirE:it.dirE,kind:it.kind,par:it.par??on,vr:it.kind===4&&(STORY.records||{})[it.doc]?1:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
   return out;}
 function mapMarks(){return LV&&LV.marks?LV.marks(S):[];}
 const EXPO={prologue:0.5,ch1:1,ch2:0.62,ch3:0.55,ch4:0.62,ch5:0.58};
