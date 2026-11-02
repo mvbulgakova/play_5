@@ -150,10 +150,11 @@ const FS_MISSION=HEAD+`
 #define NO ${NO}
 uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV; uniform float uBall; uniform float uCamPar;
 uniform vec4 uF[3]; uniform vec4 uA[4];
-uniform vec4 uK[NK]; uniform float uLit[NK]; uniform int uNK;
-uniform vec4 uO[NO]; uniform vec4 uOD[NO]; uniform vec4 uOK[NO]; uniform int uNO;
+uniform vec4 uK[NK]; uniform float uLit[NK]; uniform vec4 uRC[NK]; uniform int uNK;
+uniform vec4 uO[NO]; uniform vec4 uOR[NO]; uniform vec4 uOU[NO]; uniform vec4 uOD[NO]; uniform vec4 uOK[NO]; uniform vec4 uOC[NO]; uniform int uNO;
 uniform vec4 uMark; uniform float uMarkOn; uniform float uLens; uniform float uTime; uniform float uCosFov; uniform float uView;
 const vec3 FOG=vec3(0.010,0.013,0.030);
+const vec3 LAMP=vec3(1.0,0.68,0.36);
 vec4 gA[4]; bool gW[3];
 int roomKey(vec4 k){
   for(int j=0;j<NK;j++){ if(j>=uNK) break; vec4 r=abs(k-uK[j])/uK[j];
@@ -167,26 +168,132 @@ float map(vec4 p){
   float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
   for(int i=0;i<3;i++) if(gW[i]){ float dw=asinh(-md(p,uF[i])); if(dw<d){d=dw;gId=5+i;} }
   return d;
-}` + NORMAL + `
+}` + NORMAL + MAT + `
+// ── стены: обои, деревянная рама с латунным валиком, медальон-розетка в центре грани ──
+float wallH(vec4 p){ float e=edgeDist(p), r=acosh(max(-md(p,uP1),1.));
+  float h=0.008*smoothstep(0.045,0.06,e)*(1.-smoothstep(0.105,0.118,e));
+  h+=0.003*exp(-pow((e-0.075)/0.006,2.));
+  h-=0.003*exp(-pow((e-0.13)/0.006,2.));
+  h+=0.006*(1.-smoothstep(0.155,0.162,r));
+  h-=0.002*(1.-smoothstep(0.125,0.13,r));
+  h+=0.0015*fbm(p.xyz*45.);
+  return h; }
+float surfH(vec4 p,int id){ if(id==1) return edgeH(p); if(id>=5) return wallH(p); return 0.; }
+void wallMat(vec4 p,int room,out vec3 base,out float metal,out float rough){
+  float e=edgeDist(p), r=acosh(max(-md(p,uP1),1.)), a=asinh(abs(md(p,uM[2]))), b=asinh(abs(md(p,uM[3])));
+  int k=room<0?0:room-4*(room/4);
+  vec3 paper= k==0? vec3(0.13,0.24,0.25) : k==1? vec3(0.30,0.10,0.09) : k==2? vec3(0.27,0.23,0.12) : vec3(0.13,0.17,0.27);
+  float st=fbm(p.xyz*5.+float(room)*1.7);
+  base=paper*(0.70+0.6*st);
+  float dm=abs(sin(r*55.)*sin(min(a,b)*55.)); base*=1.+0.14*smoothstep(0.6,0.95,dm);
+  float w=0.0035;
+  float chalk=max(1.-smoothstep(w,2.*w,abs(r-0.26)), 1.-smoothstep(w,2.*w,abs(r-0.40)));
+  chalk=max(chalk,(1.-smoothstep(w,2.*w,abs(a-0.09)))*step(0.18,r)*step(r,0.46));
+  base=mix(base,vec3(0.80,0.82,0.78),chalk*0.35*smoothstep(0.3,0.6,fbm(p.xyz*30.)));
+  base*=mix(0.5,1.,smoothstep(0.115,0.20,e));
+  metal=0.; rough=0.85;
+  if(e<0.118){ float gr=fbm(vec3(alongEdge(p)*60.,e*300.,1.)); base=vec3(0.20,0.11,0.055)*(0.65+0.7*gr); rough=0.42;
+    if(abs(e-0.075)<0.0065){ brass(p,base,rough); metal=1.; } }
+  if(r<0.16){
+    if(r>0.128){ brass(p,base,rough); metal=1.; }
+    else{ base=vec3(0.10,0.16,0.30)*(0.8+0.4*fbm(p.xyz*60.)); rough=0.12; metal=0.;
+      float star=1.-smoothstep(0.003,0.006,min(a,b)), ring=1.-smoothstep(0.003,0.006,abs(r-0.08));
+      if(max(star,ring)>0.5){ brass(p,base,rough); metal=1.; } } }
+}
+// ── объекты: евклидовы SDF в локальной системе координат объекта ──
+mat2 rot(float a){ float c=cos(a), s=sin(a); return mat2(c,-s,s,c); }
+float smin(float a,float b,float k){ float h=clamp(.5+.5*(b-a)/k,0.,1.); return mix(b,a,h)-k*h*(1.-h); }
+float sdSph(vec3 p,float r){ return length(p)-r; }
+float sdCaps(vec3 p,vec3 a,vec3 b,float r){ vec3 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.); return length(pa-ba*h)-r; }
+float sdTorZ(vec3 p,float R,float r){ vec2 q=vec2(length(p.xy)-R,p.z); return length(q)-r; }
+float sdEll(vec3 p,vec3 r){ float k0=length(p/r), k1=length(p/(r*r)); return k0*(k0-1.)/max(k1,1e-6); }
+float sdBox(vec3 p,vec3 b){ vec3 q=abs(p)-b; return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.); }
+float sdOct(vec3 p,float s){ p=abs(p); return (p.x+p.y+p.z-s)*0.57735027; }
+float sdRCone(vec3 p,float r1,float r2,float h){ vec2 q=vec2(length(p.xz),p.y); float b=(r1-r2)/h, a=sqrt(1.-b*b), k=dot(q,vec2(-b,a));
+  if(k<0.) return length(q)-r1; if(k>a*h) return length(q-vec2(0.,h))-r2; return dot(q,vec2(a,b))-r1; }
+// Чертёжник: парящая мантия, капюшон, фарфоровая маска с линзой-глазом, латунный циркуль
+float guardSDF(vec3 q,float sl,out int m){
+  if(sl>.5){ q.xy=rot(1.1)*q.xy; }
+  q.y+=0.006*sin(uTime*1.7);
+  float ang=atan(q.x,q.z);
+  float robe=sdRCone(q-vec3(0,-0.13,0),0.008,0.048,0.155);
+  robe+=0.0028*sin(ang*7.+q.y*40.+uTime*0.8)*smoothstep(0.02,-0.12,q.y);
+  float mant=sdEll(q-vec3(0,0.03,0),vec3(0.068,0.024,0.052));
+  float d=smin(robe,mant,0.02); m=1;
+  float hood=max(sdSph(q-vec3(0,0.082,-0.006),0.040),-(q.z-0.016));
+  hood=max(hood,-sdSph(q-vec3(0,0.08,0.002),0.034));
+  if(hood<d){d=hood;m=5;}
+  float head=sdSph(q-vec3(0,0.078,-0.002),0.031); if(head<d){d=head;m=5;}
+  float mask=sdEll(q-vec3(0,0.076,0.017),vec3(0.024,0.030,0.016)); if(mask<d){d=mask;m=3;}
+  vec3 e=q-vec3(0,0.084,0.031);
+  float ring=sdTorZ(e,0.011,0.0032); if(ring<d){d=ring;m=2;}
+  float lens=sdEll(e,vec3(0.009,0.009,0.004)); if(lens<d){d=lens;m=4;}
+  float c1=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.075,-0.11,0.03),0.0036);
+  float c2=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.042,-0.11,0.045),0.0036);
+  float hg=sdSph(q-vec3(0.058,0.048,0.01),0.008);
+  float cmp=min(min(c1,c2),hg); if(cmp<d){d=cmp;m=2;}
+  float pa=sdEll(vec3(abs(q.x),q.y,q.z)-vec3(0.05,0.042,0.0),vec3(0.022,0.012,0.026)); if(pa<d){d=pa;m=2;}
+  return d;
+}
+float objSDF(int kind,vec3 q,float sl,out int m){
+  if(kind==1) return guardSDF(q,sl,m);
+  if(kind==3){ q.xz=rot(uTime*0.6)*q.xz; vec3 c=q-vec3(0,0.015,0);
+    float ring=sdTorZ(c,0.040,0.0055), glass=sdEll(c,vec3(0.036,0.036,0.004));
+    float h=sdCaps(q,vec3(0,-0.026,0),vec3(0,-0.075,0),0.0055), knob=sdSph(q-vec3(0,-0.08,0),0.008);
+    float d=min(min(ring,h),knob); m=2; if(glass<d){d=glass;m=6;} return d; }
+  if(kind==4){ q.xz=rot(sin(uTime*0.7)*0.5)*q.xz; vec3 r=q; r.z+=6.*r.x*r.x;
+    float pap=sdBox(r,vec3(0.032,0.044,0.0008))-0.0005, seal=sdEll(r-vec3(0.016,-0.028,0.002),vec3(0.008,0.008,0.0025));
+    if(seal<pap){m=7;return seal;} m=8; return pap*0.8; }
+  if(kind==2){ float core=sdSph(q,0.011);
+    vec3 r=q; r.xz=rot(uTime*1.3)*r.xz; r.yz=rot(0.6)*r.yz;
+    vec3 s=q; s.xy=rot(uTime*0.9)*s.xy; s.xz=rot(1.2)*s.xz;
+    float d=min(sdTorZ(r,0.026,0.0022),sdTorZ(s,0.021,0.0018)); m=2; if(core<d){d=core;m=9;} return d; }
+  if(kind==7){ q.xz=rot(uTime*0.8)*q.xz; m=10; return sdOct(vec3(q.x,q.y*0.5,q.z),0.024)*0.7; }
+  if(kind==5){ float ring=sdTorZ(q,0.128,0.011), disk=sdEll(q,vec3(0.122,0.122,0.002)); m=2; float d=ring; if(disk<d){d=disk;m=11;} return d; }
+  m=0; return sdSph(q,0.03);
+}
 float sphereT(vec4 p0, vec4 v0, vec4 C, float R){
   float A=-md(p0,C), B=-md(v0,C), k=cosh(R);
   if(A<=k) return 1e9; float disc=k*k-A*A+B*B; if(disc<=0.) return 1e9;
   float u=(k-sqrt(disc))/(A+B); if(u<=1.) return 1e9; return log(u);
 }
+// мягкая тень от стражей на пути «точка → лампа комнаты»
+float guardShadow(vec4 P, vec4 Lw){
+  float dl=acosh(max(-md(P,Lw),1.)); vec4 tl=tp(Lw,P); float s=1.;
+  for(int j=0;j<NO;j++){ if(j>=uNO) break; if(uOK[j].x>1.5) continue;
+    vec4 C=uO[j]; float dc=acosh(max(-md(P,C),1.)); if(dc>dl||dc<0.02) continue;
+    float al=asin(clamp(sinh(0.075)/sinh(dc),0.,1.)), th=acos(clamp(md(tp(C,P),tl),-1.,1.));
+    s*=mix(0.25,1.,smoothstep(al*0.5,al*1.7,th)); }
+  return s; }
 void main(){
   vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
   vec3 dr=normalize(vec3(uv*uTanFov,1.));
   vec4 p=uCam[3], v=uCam[0]*dr.x+uCam[1]*dr.y+uCam[2]*dr.z;
   vec4 p0=p, v0=v;
   for(int i=0;i<4;i++) gA[i]=uA[i];
+  // объекты: пересечение с ограничивающим шаром, затем короткий марш по SDF фигуры
   float tO=1e9, tG=1e9, tI=1e9; int iO=-1;
   for(int j=0;j<NO;j++){ if(j>=uNO) break;
-    float tt=sphereT(p0,v0,uO[j],uOK[j].y); if(tt>1e8) continue;
-    if(tt<tO){tO=tt;iO=j;}
-    if(uOK[j].x<1.5){ if(uOK[j].w<.5) tG=min(tG,tt); } else tI=min(tI,tt);
+    vec4 C=uO[j]; float R=uOK[j].y; float A=-md(p0,C), B=-md(v0,C), k=cosh(R);
+    float disc=k*k-A*A+B*B; if(disc<=0.) continue;
+    float sq=sqrt(disc), u1=(k-sq)/(A+B), u2=(k+sq)/(A+B);
+    if(u2<=1.) continue;
+    float t0=u1>1.? log(u1) : 0., t1=log(u2);
+    int kind=int(uOK[j].x+.5); float sl=mod(uOK[j].w,2.);
+    if(kind==1){ if(sl<.5) tG=min(tG,t0); } else tI=min(tI,t0);
+    if(t0>=tO) continue;
+    float tt=t0;
+    for(int s=0;s<56;s++){
+      vec4 X=cosh(tt)*p0+sinh(tt)*v0; vec3 q=vec3(md(X,uOR[j]),md(X,uOU[j]),md(X,uOD[j]));
+      int m; float dd=objSDF(kind,q,sl,m);
+      if(dd<2.5e-4){ if(tt<tO){tO=tt;iO=j;} break; }
+      tt+=dd; if(tt>t1) break;
+    }
   }
-  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; int cells=0; bool hit=false, ohit=false;
-  for(int i=0;i<150;i++){
+  int r0=roomKey(vec4(gA[0].w,gA[1].w,gA[2].w,gA[3].w));
+  float litC= r0>=0? uLit[r0] : 0.;
+  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; bool hit=false, ohit=false;
+  for(int i=0;i<160;i++){
     for(int it=0;it<16;it++){
       bool any=false;
       for(int k=0;k<4;k++){
@@ -195,10 +302,8 @@ void main(){
           p-=2.*s*uM[k]; v-=2.*md(v,uM[k])*uM[k];
           for(int q=0;q<4;q++) gA[q]-=2.*md(gA[q],uM[k])*uM[k];
           any=true;
-          if(k==0){ cells++;
-            if(uGlass>.5){ float fr=fresnel(abs(md(v,uM[0]))); float fg=exp(-t/uFog);
-              acc+=thr*fg*fr*vec3(0.30,0.48,0.85)*0.20; thr*=vec3(0.93,0.95,0.98)*(1.-0.30*fr); }
-          }
+          if(k==0){ int rk=roomKey(vec4(gA[0].w,gA[1].w,gA[2].w,gA[3].w)); litC= rk>=0? uLit[rk] : 0.;
+            if(uGlass>.5) glassCross(p,v,t,thr,acc,LAMP,litC); }
         }
       }
       if(!any) break;
@@ -209,7 +314,10 @@ void main(){
     d=map(p);
     if(t+d>=tO){ ohit=true; break; }
     if(d<3e-4*(1.+t)){hit=true;break;}
-    adv(p,v,d); t+=d;
+    float st=min(d,max(asinh(-md(p,uM[0])),0.)+1e-3);
+    float sl=sinh(acosh(max(p.w,1.)));
+    acc+=thr*LAMP*litC*(0.011/(0.015+sl*sl))*min(st,0.25)*exp(-t/uFog);
+    adv(p,v,st); t+=st;
     if(t>14.||thr.g<0.02) break;
   }
   vec3 col=FOG; float tHit=1e9;
@@ -218,55 +326,49 @@ void main(){
   if(hit){
     tHit=t;
     int id=gId; vec4 n=calcN(p,d);
-    bool odd=((cells+int(uCamPar))%2==1);
-    vec3 lamp=odd? vec3(0.45,0.78,1.0): vec3(1.0,0.72,0.40);
-    float head=max(-md(n,v),0.);
+    if(id==1||id>=5) n=bumpN(p,n,id,1.);
+    vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.)));
+    float att=1.6/(0.18+sr*sr)*lit;
     vec3 sc;
-    if(id==3){ sc= lit>.5? lamp*2.4 : vec3(0.03,0.04,0.08)+vec3(0.12,0.2,0.36)*pow(1.-head,3.); }
+    if(id==3) sc=lampShade(n,v,LAMP,lit);
     else{
-      vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.)));
-      float att=1.5/(0.22+sr*sr)*lit;
-      float dif=max(md(n,L),0.);
-      vec4 hv=tp(L-v,p); float sp=pow(max(md(n,hv),0.),48.);
-      vec3 base; float spk=0.5;
-      if(id>=5){
-        float a=md(p,uE1), b=md(p,uE2); float e=asinh(sqrt(a*a+b*b));
-        base=vec3(0.07,0.12,0.22);
-        float fw=fwidth(e)*1.2+0.002;
-        float ln=1.-smoothstep(fw,fw*2.,abs(mod(e+0.04,0.12)-0.06));
-        base+=vec3(0.20,0.32,0.50)*ln*0.55;
-        base=mix(base,vec3(0.55,0.40,0.20),1.-smoothstep(0.05,0.07,e));
-        spk=0.15;
-      } else base= id==1? vec3(0.80,0.55,0.26): vec3(0.88,0.85,0.80);
-      sc=base*(0.025+dif*att*lamp+0.11*head)+sp*att*lamp*spk;
+      float ao=calcAO(p,n);
+      if(lit>0.&&room>=0){ vec4 P=cosh(t)*p0+sinh(t)*v0; att*=guardShadow(P,uRC[room]); }
+      vec3 base; float metal=1., rough;
+      if(id==1){ brass(p,base,rough); float u=alongEdge(p); float gb=abs(fract(u*13.)-0.5)/13.; base*=mix(0.40,1.,smoothstep(0.002,0.006,gb)); }
+      else if(id==2){ base=vec3(0.78,0.80,0.84); rough=0.16+0.2*fbm(p.xyz*25.); }
+      else wallMat(p,room,base,metal,rough);
+      sc=brdf(base,metal,rough,n,v,L,p)*LAMP*att*mix(0.5,1.,ao)+ambEnv(n,v,L,LAMP,att,base,metal,rough,ao);
     }
     col=mix(FOG,sc,exp(-t/uFog));
   } else if(ohit){
     tHit=tO; t=tO;
-    vec4 C=uO[iO], K=uOK[iO];
-    float ch=cosh(tO), sh=sinh(tO);
-    vec4 P=ch*p0+sh*v0, vP=sh*p0+ch*v0;
-    vec4 n=tp(-C,P);
-    float facing=max(-md(n,vP),0.);
-    vec4 dc=tp(P,C);
-    float Lf=0.30+0.70*lit;
-    vec3 sc;
-    if(K.x<1.5){
-      bool sl=K.w>.5;
-      float e=md(dc,uOD[iO]);
-      vec3 body=vec3(0.70,0.72,0.78)*(0.2+0.8*facing)*Lf;
-      float ring=1.-smoothstep(0.05,0.09,abs(e));
-      body=mix(body,vec3(0.80,0.56,0.24)*(0.3+0.7*facing)*Lf,ring);
-      vec3 eyeC= sl? vec3(0.03): mix(vec3(1.,0.78,0.32),vec3(1.,0.12,0.06),K.z)*2.6;
-      float eye=smoothstep(0.90,0.94,e);
-      sc=mix(body,eyeC,eye);
-      if(sl) sc*=0.45;
-    }
-    else if(K.x<2.5) sc=vec3(1.0,0.78,0.35)*(1.1+0.5*sin(uTime*3.))*(0.45+0.55*facing);
-    else if(K.x<3.5){ float fr=pow(1.-facing,3.); sc=vec3(0.25,0.55,1.0)*(0.5+2.4*fr)+vec3(0.8,0.9,1.)*pow(facing,24.)*2.; }
-    else if(K.x<4.5) sc=vec3(0.95,0.90,0.78)*(0.35+0.65*facing)*(0.7+0.5*Lf);
-    else if(K.x<5.5){ float fr=pow(1.-facing,2.); sc=mix(vec3(0.92,0.96,1.)*2.4,vec3(0.3,0.6,1.)*1.6,fr)*(0.25+0.75*K.z)*(0.9+0.1*sin(uTime*2.)); }
-    else sc=vec3(0.70,0.35,1.0)*(1.0+0.5*sin(uTime*4.))*(0.45+0.55*facing);
+    int j=iO; int kind=int(uOK[j].x+.5); float sl=mod(uOK[j].w,2.), litO=floor(uOK[j].w*0.5+0.01), par=uOK[j].z;
+    vec4 X=cosh(tO)*p0+sinh(tO)*v0, vX=sinh(tO)*p0+cosh(tO)*v0;
+    vec3 q=vec3(md(X,uOR[j]),md(X,uOU[j]),md(X,uOD[j]));
+    int mm; const vec2 h=vec2(1.,-1.)*0.0006;
+    vec3 nq=normalize(h.xyy*objSDF(kind,q+h.xyy,sl,mm)+h.yyx*objSDF(kind,q+h.yyx,sl,mm)+h.yxy*objSDF(kind,q+h.yxy,sl,mm)+h.xxx*objSDF(kind,q+h.xxx,sl,mm));
+    objSDF(kind,q,sl,mm);
+    vec4 n=tp(nq.x*uOR[j]+nq.y*uOU[j]+nq.z*uOD[j],X);
+    vec4 Lc=uOC[j]; vec4 L=tp(Lc,X); float sr=sinh(acosh(max(-md(X,Lc),1.))); float att=1.6/(0.18+sr*sr)*litO;
+    float f=clamp(-md(n,vX),0.,1.);
+    vec3 base=vec3(0.5), emis=vec3(0.); float metal=0., rough=0.6;
+    if(mm==1){ base=vec3(0.07,0.08,0.13); rough=0.8; if(sl<.5&&abs(q.y-0.012)<0.005){ brass(X,base,rough); metal=1.; } }
+    else if(mm==5){ base=vec3(0.045,0.05,0.085); rough=0.85; }
+    else if(mm==2){ brass(X,base,rough); metal=1.; }
+    else if(mm==3){ base=vec3(0.86,0.83,0.77)*(0.9+0.15*fbm(q*300.)); rough=0.32; }
+    else if(mm==4){ base=vec3(0.02); rough=0.1; emis= sl>.5? vec3(0.) : mix(vec3(1.,0.72,0.28),vec3(1.,0.12,0.05),par)*(3.5+1.5*sin(uTime*6.)*par); }
+    else if(mm==6){ base=vec3(0.05,0.08,0.12); rough=0.05; emis=vec3(0.25,0.55,1.0)*(0.5+2.2*pow(1.-f,3.)); }
+    else if(mm==7){ base=vec3(0.45,0.05,0.04); rough=0.35; }
+    else if(mm==8){ base=vec3(0.86,0.80,0.66); rough=0.9;
+      if(abs(q.x)<0.024&&q.y>-0.02&&q.y<0.036&&fract(q.y*110.)<0.3) base=vec3(0.22,0.18,0.14);
+      emis=base*0.06; }
+    else if(mm==9){ base=vec3(0.2); emis=vec3(1.0,0.75,0.32)*(2.5+1.2*sin(uTime*3.)); }
+    else if(mm==10){ base=vec3(0.30,0.15,0.55); rough=0.12; emis=vec3(0.55,0.25,1.0)*(0.5+0.8*pow(1.-f,2.))*(1.+0.4*sin(uTime*4.)); }
+    else if(mm==11){ float sw=fbm(vec3(q.xy*28.+vec2(sin(uTime*0.3),cos(uTime*0.27)),uTime*0.25));
+      emis=mix(vec3(0.30,0.55,1.0),vec3(0.95,0.97,1.0),smoothstep(0.35,0.75,sw))*(0.55+0.85*par)*(0.55+0.45*smoothstep(0.122,0.03,length(q.xy))); base=vec3(0.02); }
+    vec3 sc=brdf(base,metal,rough,n,vX,L,X)*LAMP*att+ambEnv(n,vX,L,LAMP,att,base,metal,rough,1.)+emis
+      +vec3(0.25,0.35,0.6)*pow(1.-f,4.)*0.22;
     col=mix(FOG,sc,exp(-t/uFog));
   }
   if(uLens>0.){
@@ -275,13 +377,13 @@ void main(){
     if(tI<tHit-0.01) col=mix(col,vec3(1.,0.85,0.40),0.5*uLens);
     if(tHit<1e8){
       vec4 P=cosh(tHit)*p0+sinh(tHit)*v0;
-      for(int j=0;j<NO;j++){ if(j>=uNO) break; if(uOK[j].x>1.5||uOK[j].w>.5) continue;
+      for(int j=0;j<NO;j++){ if(j>=uNO) break; if(uOK[j].x>1.5||mod(uOK[j].w,2.)>.5) continue;
         float dist=acosh(max(-md(P,uO[j]),1.)); if(dist>uView||dist<0.02) continue;
         if(md(tp(P,uO[j]),uOD[j])>uCosFov) col=mix(col,vec3(1.,0.18,0.08),0.28*uLens*(1.-dist/uView)); }
     }
   }
-  if(uMarkOn>.5){ float tm=sphereT(p0,v0,uMark,0.06); if(tm<tHit) col=mix(col,vec3(0.55,0.92,1.0)*1.4,0.65); }
-  fragColor=vec4(finish(acc+thr*col),1.);
+  if(uMarkOn>.5){ float tm=sphereT(p0,v0,uMark,0.06); if(tm<tHit){ col=mix(col,vec3(0.55,0.92,1.0)*2.2,0.6); tHit=tm; } }
+  fragColor=outc(acc+thr*col, tHit<1e8? tHit : 60.);
 }`;
 let MP=null,MPerr=null;
 try{MP=program(gl,FS_MISSION);}catch(e){MPerr=e;console.error(e);}
@@ -320,28 +422,29 @@ const css=`
 #mhud>*{pointer-events:none}
 #mobj{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));max-width:min(420px,calc(100vw - 32px));text-shadow:0 1px 8px #000}
 #mobj .ch{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
-#mobj .rn{font-family:var(--display);font-size:22px;line-height:1.1;margin:2px 0 8px}
+#mobj .rn{font-family:var(--display);font-size:28px;line-height:1.05;margin:2px 0 8px}
 #mobj ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:13px}
 #mobj li::before{content:"◇ ";color:var(--brass)}
 #mobj li.done{color:var(--muted);text-decoration:line-through}
 #mobj li.done::before{content:"◆ "}
 #mobj li.locked{color:var(--muted);opacity:.6}
-#mbar{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px 14px;min-width:220px}
+#mbar{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;background:var(--panel);padding:4px 6px;min-width:220px}
 #mbar .lbl{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 #mbar .track{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
-#mbar .fill{height:100%;background:linear-gradient(90deg,#6b4fd6,#a78bff);width:50%}
+#mbar .fill{height:100%;background:linear-gradient(90deg,#4b36a8,#8f74ff 70%,#d9ccff);width:50%;box-shadow:0 0 10px #8f74ff}
 #mbar .ab{display:flex;gap:10px;font-size:12px;color:var(--fg)}
 #mbar .ab span{opacity:.95}#mbar .ab span.off{opacity:.35}
 #mbar kbd{font:500 10px var(--mono);border:1px solid var(--line);border-radius:2px;padding:1px 4px;margin-right:4px;color:var(--brass)}
 #mprompt{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);font-size:14px;color:var(--fg);background:rgba(12,14,28,.7);border:1px solid var(--line);border-radius:3px;padding:6px 12px;display:none;white-space:nowrap}
 #mprompt b{color:var(--brass);font-family:var(--mono);font-weight:500}
-#msub{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));width:min(680px,calc(100vw - 32px));text-align:center;font-size:15px;line-height:1.5;color:var(--fg);text-shadow:0 1px 6px #000,0 0 18px #000;transition:opacity .5s}
-#msub .who{color:var(--brass);font-weight:600}
-#mtitle{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-family:var(--display);font-size:38px;color:var(--fg);text-shadow:0 2px 20px #000;opacity:0;transition:opacity .8s;text-align:center;white-space:nowrap}
-#mtitle small{display:block;font-family:var(--body);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--brass)}
-#mplaque{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:min(360px,calc(100vw - 32px));background:var(--panel-solid);border:1px solid var(--brass);border-radius:4px;padding:14px 16px;display:none;line-height:1.55}
-#mplaque h4{margin:0 0 6px;font-family:var(--display);font-size:22px;color:var(--brass);font-weight:600}
-#mplaque p{margin:0;font-size:13.5px}
+#msub{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));width:min(700px,calc(100vw - 32px));text-align:center;font-family:var(--serif);font-style:italic;font-size:18px;line-height:1.45;color:var(--fg);text-shadow:0 1px 6px #000,0 0 18px #000;transition:opacity .5s}
+#msub .who{color:var(--brass);font:600 11px var(--body);font-style:normal;letter-spacing:.16em;text-transform:uppercase;display:block;margin-bottom:2px}
+#mtitle{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-family:var(--display);font-size:52px;letter-spacing:.01em;color:var(--fg);text-shadow:0 2px 20px #000;opacity:0;transition:opacity .8s;text-align:center;white-space:nowrap}
+#mtitle small{display:block;font-family:var(--body);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--brass);margin-bottom:4px}
+#mtitle i{display:block;margin:8px auto 0;width:220px;height:9px;background:linear-gradient(90deg,transparent,var(--brass) 30%,transparent 48%,transparent 52%,var(--brass) 70%,transparent) center/100% 1px no-repeat,radial-gradient(circle,var(--brass) 0 3px,transparent 3.5px) center/9px 9px no-repeat}
+#mplaque{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));width:min(380px,calc(100vw - 32px));background:radial-gradient(ellipse at top,#1b2038,#0d1020);padding:8px 10px;display:none;line-height:1.55}
+#mplaque h4{margin:0 0 6px;font-family:var(--display);font-size:27px;color:var(--brass);font-weight:400}
+#mplaque p{margin:0;font-family:var(--serif);font-size:15px}
 #mplaque .k{margin-top:8px;font-size:11px;color:var(--muted)}
 #mind .gi{position:absolute;transform:translate(-50%,-100%);width:22px;height:13px;border-radius:50%;border:2px solid #f2c063;background:transparent;overflow:hidden;box-shadow:0 0 6px #000}
 #mind .gi i{position:absolute;left:0;bottom:0;width:100%;background:#f2c063}
@@ -350,18 +453,24 @@ const css=`
 #mlensv{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(60,120,255,0) 45%,rgba(40,90,220,.35));opacity:0;transition:opacity .25s}
 #mscreen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,8,16,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;z-index:5}
 #mscreen.on{display:flex}
-#mscreen .card{width:min(620px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--panel-solid);border:1px solid var(--line);border-radius:4px;padding:24px 26px;line-height:1.55}
+#mscreen .card{width:min(640px,100%);max-height:calc(100vh - 32px);overflow:auto;background:radial-gradient(ellipse at top,#1c2140,#0c0f1c 70%);padding:16px 22px;line-height:1.55;box-shadow:0 20px 80px rgba(0,0,0,.6)}
+#mscreen .crest{display:flex;flex-direction:column;align-items:center;text-align:center;margin:4px 0 14px}
+#mscreen .crest svg{width:96px;height:96px;filter:drop-shadow(0 0 14px rgba(214,163,90,.35))}
+#mscreen .wordmark{font-family:var(--display);font-size:50px;line-height:1;letter-spacing:.06em;text-transform:uppercase;margin-top:10px;background:linear-gradient(180deg,#f6dfab,#d6a35a 55%,#8a5f2c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 rgba(0,0,0,.6))}
+#mscreen .crest .ch{margin-top:8px}
 #mscreen .ch{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
-#mscreen h2{font-family:var(--display);font-size:38px;line-height:1.05;margin:4px 0 12px;font-weight:600}
-#mscreen p{margin:0 0 10px}
-#mscreen .q{font-family:var(--display);font-style:italic;font-size:18px;color:var(--fg);border-left:2px solid var(--brass);padding-left:12px;margin:12px 0}
+#mscreen h2{font-family:var(--display);font-size:44px;line-height:1.05;margin:4px 0 12px;font-weight:400}
+#mscreen .crest h2{margin:2px 0 0}
+#mscreen p{margin:0 0 10px;font-family:var(--serif);font-size:16px}
+#mscreen .q{font-family:var(--serif);font-style:italic;font-size:17px;color:var(--fg);border-left:2px solid var(--brass);padding-left:12px;margin:12px 0}
 #mscreen .ctrls{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;color:var(--muted);margin:12px 0}
 #mscreen .ctrls b{font-family:var(--mono);font-weight:500;color:var(--brass)}
 #mscreen .stats{display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-size:14px;margin:12px 0}
 #mscreen .stats span:nth-child(2n){font-family:var(--mono);text-align:right}
-#mscreen .rank{font-family:var(--display);font-size:26px;color:var(--brass)}
+#mscreen .rank{font-family:var(--display);font-size:30px;color:var(--brass)}
 #mscreen .row{margin-top:16px}
-#mscreen .btn.main{background:var(--brass);color:#1a1206;border-color:var(--brass);font-weight:600}
+#mscreen .btn{letter-spacing:.06em;text-transform:uppercase;font-size:11.5px;padding:10px 14px;margin:0 6px 6px 0}
+#mscreen .btn.main{background:linear-gradient(180deg,#f0c983,#c08a45);color:#1a1206;border-color:#f0c983;font-weight:600;box-shadow:0 0 18px rgba(214,163,90,.35)}
 #mscreen details{margin-top:6px;font-size:13px}#mscreen summary{cursor:pointer;color:var(--brass)}
 #mmap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100vw - 32px));aspect-ratio:1;background:rgba(8,12,26,.92);border:1px solid var(--brass);border-radius:50%;display:none;pointer-events:none;z-index:4}
 #mmap.on{display:block}
@@ -376,10 +485,10 @@ const st=document.createElement('style');st.textContent=css;document.head.append
 const hudEl=document.createElement('div');hudEl.id='mhud';
 hudEl.innerHTML=`<div id="mlensv"></div><div id="mind"></div>
 <div id="mobj"><div class="ch">Глава 1 · Архив лишних точек</div><div class="rn" id="mroom"></div><ul id="mlist"></ul></div>
-<div id="mbar"><div class="lbl"><span>Дефект</span><span id="mmana" class="mono"></span></div><div class="track"><div class="fill" id="mfill"></div></div>
+<div id="mbar" class="framed"><div class="lbl"><span>Дефект</span><span id="mmana" class="mono"></span></div><div class="track"><div class="fill" id="mfill"></div></div>
 <div class="ab"><span id="ab-blink"><kbd>ПКМ</kbd>Рывок</span><span id="ab-lens" class="off"><kbd>V</kbd>Линза</span><span><kbd>F</kbd>Действие</span></div></div>
 <div id="mprompt"></div><div id="msub"></div><div id="mtitle"></div><div id="mtoast"></div>
-<div id="mplaque"><h4 id="mpl-t"></h4><p id="mpl-x"></p><div class="k">Лемма записана в журнал (Esc → Леммы)</div></div>
+<div id="mplaque" class="framed"><h4 id="mpl-t"></h4><p id="mpl-x"></p><div class="k">Лемма записана в журнал (Esc → Леммы)</div></div>
 <div id="mtouch"><button id="mt-blink">Рывок</button><button id="mt-lens">Линза</button><button id="mt-act">F</button></div>
 <button class="btn" id="mpause">II</button>`;
 document.getElementById('ui').appendChild(hudEl);
@@ -487,7 +596,7 @@ function update(dt){
     else once('early',()=>say('Николай','Ещё рано. Линза и лист 281 должны быть у тебя.'));}
   else if(S.flags.early&&hyperbolicDistance(p,ex.pos)>0.6)S.flags.early=0;
   // реплики
-  if(S.subs.length){const sub=S.subs[0];if(!sub.shown){sub.shown=1;$('msub').innerHTML=`<span class="who">${sub.who}:</span> ${sub.text}`;$('msub').style.opacity=1;}
+  if(S.subs.length){const sub=S.subs[0];if(!sub.shown){sub.shown=1;$('msub').innerHTML=`<span class="who">${sub.who}</span>${sub.text}`;$('msub').style.opacity=1;}
     sub.dur-=dt;if(sub.dur<=0){S.subs.shift();$('msub').style.opacity=0;}}
   if(S.plaqueT>0){S.plaqueT-=dt;if(S.plaqueT<=0)$('mplaque').style.display='none';}
 }
@@ -538,27 +647,34 @@ function finish(){if(S.over)return;S.over=true;AU.win();
   <span>Найдено спящих</span><span>${st.bodies}</span><span>Рывков</span><span>${st.blinks}</span><span>Леммы</span><span>${lem} / ${LEMMAS.length}</span></div>
   <p style="color:var(--muted);font-size:13px">Это вертикальный срез вехи 1. Дальше по концепту — Глава 2 «Тюрьма-додекаэдр».</p>
   <div class="row"><button class="btn main" data-a="restart">Сыграть ещё раз</button><button class="btn" data-a="quit">Выйти в прогулку</button></div>`);}
-function roomTitle(n){const e=$('mtitle');e.innerHTML=`<small>Архив</small>${n}`;e.style.opacity=1;clearTimeout(roomTitle.t);roomTitle.t=setTimeout(()=>e.style.opacity=0,2200);}
+function roomTitle(n){const e=$('mtitle');e.innerHTML=`<small>Архив</small>${n}<i></i>`;e.style.opacity=1;clearTimeout(roomTitle.t);roomTitle.t=setTimeout(()=>e.style.opacity=0,2200);}
 
 // ───────── рендер ─────────
+const BOUND={1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05};
+const ITEM_FR=ITEMS.map(it=>{const rc=ROOMS[RI(it.room)].c;
+  const look=it.kind===5?ROOMS[RI('c1')].c:rc;return {F:frameAt(it.pos,dirTo(it.pos,look)),room:RI(it.room)};});
 function render(now){
-  resize();gl.viewport(0,0,canvas.width,canvas.height);
-  if(!MP)return;const P=MP;gl.useProgram(P.pr);const L=P.loc,c=S.c,Gi=linv(c.G);
+  const SC=sceneBegin();
+  if(!MP){sceneEnd(SC,now);return;}const P=MP;gl.useProgram(P.pr);const L=P.loc,c=S.c,Gi=linv(c.G);
   const f1=(n,v)=>{if(L[n]!=null)gl.uniform1f(L[n],v);},i1=(n,v)=>{if(L[n]!=null)gl.uniform1i(L[n],v);},
     f4=(n,v)=>{if(L[n]!=null)gl.uniform4fv(L[n],v);};
-  gl.uniform2fv(L.uRes,[canvas.width,canvas.height]);gl.uniformMatrix4fv(L.uCam,false,c.M);
+  gl.uniform2fv(L.uRes,[SC.sw,SC.sh]);gl.uniformMatrix4fv(L.uCam,false,c.M);f1('uDirect',SC.post?0:1);
   f1('uTanFov',fovTan());f1('uFog',6.5);f1('uGlass',1);f1('uTube',0.04);f1('uBall',0.085);f1('uCamPar',c.par);
-  f4('uM',g.M.flat());f4('uE1',g.E1);f4('uE2',g.E2);f4('uV',g.V);f4('uF',FACES.slice(0,3).flat());
+  f4('uM',g.M.flat());f4('uE1',g.E1);f4('uE2',g.E2);f4('uV',g.V);f4('uF',FACES.slice(0,3).flat());f4('uP1',g.P1);
   f4('uA',ANCH.map(a=>apply(Gi,a)).flat());
-  f4('uK',ROOMS.map(r=>r.key).flat());if(L.uLit!=null)gl.uniform1fv(L.uLit,S.lit.map(x=>x?1:0));i1('uNK',ROOMS.length);
-  const O_=[],D_=[],K_=[];
-  for(const G of S.guards){O_.push(...apply(Gi,G.pos));D_.push(...apply(Gi,G.dir));K_.push(1,0.09,G.state==='chase'?1:G.alert*0.6,G.sleep?1:0);}
-  for(const it of ITEMS){if(S.got[it.id])continue;const on=it.kind===5?(S.got.lens&&S.got.rec?1:0):0;
-    O_.push(...apply(Gi,it.pos));D_.push(0,0,0,0);K_.push(it.kind,it.r,on,0);}
-  f4('uO',O_);f4('uOD',D_);f4('uOK',K_);i1('uNO',O_.length/4);
+  f4('uK',ROOMS.map(r=>r.key).flat());f4('uRC',ROOMS.map(r=>apply(Gi,r.c)).flat());
+  if(L.uLit!=null)gl.uniform1fv(L.uLit,S.lit.map(x=>x?1:0));i1('uNK',ROOMS.length);
+  const O_=[],R_=[],U_=[],D_=[],K_=[],C_=[];
+  const push=(pos,F,kind,par,sl,room)=>{O_.push(...apply(Gi,pos));R_.push(...apply(Gi,col(F,0)));U_.push(...apply(Gi,col(F,1)));D_.push(...apply(Gi,col(F,2)));
+    const lit=room>=0&&S.lit[room]?1:0;K_.push(kind,BOUND[kind],par,(sl?1:0)+2*lit);C_.push(...apply(Gi,room>=0?ROOMS[room].c:pos));};
+  for(const G of S.guards){const F=frameAt(G.pos,G.dir);push(G.pos,F,1,G.state==='chase'?1:G.alert*0.6,G.sleep,roomOfPoint(G.pos));}
+  ITEMS.forEach((it,i)=>{if(S.got[it.id])return;const on=it.kind===5?(S.got.lens&&S.got.rec?1:0):0;push(it.pos,ITEM_FR[i].F,it.kind,on,false,ITEM_FR[i].room);});
+  f4('uO',O_);f4('uOR',R_);f4('uOU',U_);f4('uOD',D_);f4('uOK',K_);f4('uOC',C_);i1('uNO',O_.length/4);
   f1('uLens',S.lensOn?1:0);f1('uTime',now/1000);f1('uCosFov',Math.cos(FOV/2));f1('uView',VIEW);
   if(aiming&&!S.over&&!S.paused){const b=blinkTarget();f4('uMark',apply(Gi,b.pt));f1('uMarkOn',b.s>0.12?1:0);}else f1('uMarkOn',0);
   gl.drawArrays(gl.TRIANGLES,0,3);
+  if(typeof POST!=='undefined')POST.cfg.expo=1;
+  sceneEnd(SC,now);
 }
 const ui={
   obj(){const L=$('mlist');if(!L)return;const done=S.got.lens&&S.got.rec;
@@ -602,10 +718,10 @@ function drawMap(){const x=mapC.getContext('2d'),W=mapC.width,R=W*0.46;x.clearRe
   x.fillStyle='rgba(236,229,214,.6)';x.font='22px IBM Plex Sans, sans-serif';x.fillText('Планшет: модель Кэли — Клейна, косая проекция',W/2,W-60);}
 
 // ───────── экраны ─────────
-function screenShow(html){const e=screen;e.innerHTML=`<div class="card">${html}</div>`;e.classList.add('on');
+function screenShow(html){const e=screen;e.innerHTML=`<div class="card framed">${html}</div>`;e.classList.add('on');
   try{if(document.pointerLockElement)document.exitPointerLock();}catch(_){}
   e.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>act(b.dataset.a)));
-  const m=e.querySelector('.btn.main');if(m)m.focus();}
+  const m=e.querySelector('.btn.main');if(m)m.focus({preventScroll:true});e.querySelector('.card').scrollTop=0;}
 function screenHide(){screen.classList.remove('on');screen.innerHTML='';}
 function lock(){if(matchMedia('(pointer:coarse)').matches)return;try{const r=canvas.requestPointerLock();if(r&&r.catch)r.catch(()=>{});}catch(_){}}
 function act(a){AU.init();
@@ -631,7 +747,7 @@ function open(){if(!MP){alert('Шейдер миссии не собрался: 
   active=true;document.body.classList.add('mission');hudEl.classList.add('on');
   for(const id of ['top','panel','stats','hint','mapwrap'])$(id).style.visibility='hidden';
   if(!S)S=fresh();
-  screenShow(`<div class="ch">Пятый Постулат · Глава 1</div><h2>Архив лишних точек</h2>
+  screenShow(`<div class="crest">${emblemSVG()}<div class="wordmark">Пятый Постулат</div><div class="ch">Глава 1</div><h2>Архив лишних точек</h2></div>
   <p>В переписи Города появилась лишняя точка — 281-й житель, которого нет ни в одном доме. Вера, чертёжница Церкви, ночью пробирается в Архив. Он сложен из додекаэдров с прямыми углами, а между залами патрулируют Чертёжники.</p>
   <p>Найдите <b>Линзу Абсолюта</b> и <b>лист 281</b> и уйдите через Окно на Абсолют. Стражей можно не трогать — а можно усыпить со спины.</p>
   <div class="q">Стелс здесь честный: видимый размер падает как 1/sh d. Издалека, во тьме и неподвижно вас почти не разглядеть.</div>

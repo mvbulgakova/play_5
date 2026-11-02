@@ -3,7 +3,7 @@
 <title>Прогулка по Лобачевскому</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oranienbaum&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
   --bot:16px;
@@ -15,11 +15,14 @@
   --muted:#a8a092;
   --brass:#d6a35a;
   --glass:#8fc3ff;
-  --display:"Cormorant Garamond","PT Serif",Georgia,serif;
+  --display:"Oranienbaum","Old Standard TT","PT Serif",Georgia,serif;
+  --serif:"Old Standard TT","PT Serif",Georgia,serif;
   --body:"IBM Plex Sans","Segoe UI",Roboto,Arial,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --frame:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cg fill='none' stroke='%23d6a35a'%3E%3Crect x='3.5' y='3.5' width='41' height='41' stroke-opacity='.6'/%3E%3Crect x='6.5' y='6.5' width='35' height='35' stroke-opacity='.22'/%3E%3Cpath d='M1 12V1h11M47 12V1H36M1 36v11h11M47 36v11H36' stroke-width='1.4'/%3E%3C/g%3E%3Cg fill='%23d6a35a'%3E%3Cpath d='M3.5 .5l3 3-3 3-3-3z'/%3E%3Cpath d='M44.5 .5l3 3-3 3-3-3z'/%3E%3Cpath d='M3.5 41.5l3 3-3 3-3-3z'/%3E%3Cpath d='M44.5 41.5l3 3-3 3-3-3z'/%3E%3C/g%3E%3C/svg%3E");
   color-scheme:dark;
 }
+.framed{border:12px solid transparent!important;border-image:var(--frame) 16 / 12px stretch!important;border-radius:0!important}
 html,body{height:100%;margin:0;background:var(--ink);color:var(--fg);font-family:var(--body);font-size:14px;overflow:hidden;overscroll-behavior:none}
 canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
@@ -28,8 +31,9 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-acti
 #ui>*{pointer-events:auto}
 #top{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));max-width:min(620px,calc(100vw - 32px));display:flex;flex-direction:column;gap:4px;pointer-events:none}
 #top>*{pointer-events:auto}
-.brand{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
-h1{font-family:var(--display);font-weight:600;font-size:34px;line-height:1.05;margin:0;text-wrap:balance;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+.brand{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);display:flex;align-items:center;gap:8px}
+.brand svg{width:26px;height:26px;flex:none}
+h1{font-family:var(--display);font-weight:400;font-size:38px;letter-spacing:.005em;line-height:1.05;margin:0;text-wrap:balance;text-shadow:0 2px 18px rgba(0,0,0,.7)}
 #wsub{font-size:12px;color:var(--muted);text-shadow:0 1px 8px rgba(0,0,0,.8)}
 #worlds{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 #worlds button{font:500 12px/1 var(--body);color:var(--fg);background:rgba(12,14,28,.62);border:1px solid var(--line);border-radius:3px;padding:7px 10px;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -42,7 +46,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--glass);outline-
 #ptoggle span{font-family:var(--mono);font-size:14px}
 #pbody{overflow:auto;padding:0 14px 14px;display:flex;flex-direction:column;gap:10px;line-height:1.5}
 #panel.closed #pbody{display:none}
-#wdesc{margin:0;color:var(--fg)}
+#wdesc{margin:0;color:var(--fg);font-family:var(--serif);font-size:15px;line-height:1.5}
+#wtasks{font-family:var(--serif);font-size:14.5px}
 .formula{font-family:var(--mono);font-size:12px;color:var(--brass);border-left:2px solid var(--brass);padding:4px 0 4px 10px;line-height:1.6}
 #pbody h3{margin:4px 0 0;font:600 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 #wtasks{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
@@ -99,12 +104,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--glass);outline-
   <div id="danger"></div>
   <div id="crosshair"></div>
   <header id="top">
-    <div class="brand">Пространство Лобачевского · модель Кэли — Клейна</div>
+    <div class="brand"><span id="emb"></span>Пространство Лобачевского · модель Кэли — Клейна</div>
     <h1 id="wname">Додекаэдры с прямыми углами</h1>
     <div id="wsub" class="mono"></div>
     <nav id="worlds" aria-label="Миры"></nav>
   </header>
-  <aside id="panel">
+  <aside id="panel" class="framed">
     <button id="ptoggle" aria-expanded="true">Об этом мире <span>−</span></button>
     <div id="pbody">
       <p id="wdesc"></p>
@@ -122,7 +127,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--glass);outline-
       </div>
     </div>
   </aside>
-  <div id="stats" class="mono"></div>
+  <div id="stats" class="mono framed"></div>
   <div id="hint"></div>
   <div id="mapwrap" hidden><canvas id="map" width="400" height="400"></canvas><div class="cap">Вид сверху в модели Кэли — Клейна</div></div>
   <div id="joy"><div id="knob"></div></div>
@@ -177,7 +182,7 @@ void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Po
 
 const HEAD = `#version 300 es
 precision highp float;
-uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube;
+uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube; uniform float uDirect;
 out vec4 fragColor;
 int gId;
 float md(vec4 a, vec4 b){ return dot(a.xyz,b.xyz)-a.w*b.w; }
@@ -185,8 +190,19 @@ vec4 hn(vec4 p){ return p*inversesqrt(max(-md(p,p),1e-20)); }
 vec4 tp(vec4 v, vec4 p){ v+=md(v,p)*p; return v*inversesqrt(max(md(v,v),1e-20)); }
 void adv(inout vec4 p, inout vec4 v, float s){ float c=cosh(s), h=sinh(s); vec4 np=c*p+h*v; v=h*p+c*v; p=hn(np); v=tp(v,p); }
 float fresnel(float c){ return 0.04+0.96*pow(1.-clamp(c,0.,1.),5.); }
-vec3 finish(vec3 c){ c=1.-exp(-c*1.15); c=pow(c,vec3(1./2.2));
-  vec2 q=gl_FragCoord.xy/uRes-.5; c*=1.-0.35*dot(q,q); return c; }
+float hash13(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.zyx+31.32); return fract((p.x+p.y)*p.z); }
+float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(mix(hash13(i),hash13(i+vec3(1,0,0)),f.x),mix(hash13(i+vec3(0,1,0)),hash13(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hash13(i+vec3(0,0,1)),hash13(i+vec3(1,0,1)),f.x),mix(hash13(i+vec3(0,1,1)),hash13(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float fbm(vec3 p){ float a=0.5,s=0.; for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.03+vec3(1.7,9.2,3.1); a*=0.5; } return s; }
+// Выход: сжатый HDR-цвет c/(1+c) и расстояние t/(1+t) для пост-обработки (post.js).
+// Без пост-обработки (uDirect) — старый тон-маппинг прямо в экран.
+vec4 outc(vec3 c, float t){
+  if(any(isnan(c))||any(isinf(c))) c=vec3(0.); c=clamp(c,0.,64.);
+  if(uDirect>.5){ c=1.-exp(-c*1.15); c=pow(c,vec3(1./2.2)); vec2 q=gl_FragCoord.xy/uRes-.5; c*=1.-0.35*dot(q,q); return vec4(c,1.); }
+  float n=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);
+  return vec4(c/(1.+c)+(n-.5)/255., t/(1.+t));
+}
 `;
 
 const NORMAL = `
@@ -200,24 +216,85 @@ vec4 calcN(vec4 p, float d0){
   gId=sid; return tp(n,p);
 }`;
 
+// Материалы комнат из многогранников (миры 1–3 и миссия). Координаты в фундаментальной области:
+// edgeDist — до ребра, alongEdge — вдоль ребра от его середины, uP1 — центр грани N0.
+const MAT = `
+uniform vec4 uP1;
+float surfH(vec4 p, int id);
+float edgeDist(vec4 p){ float a=md(p,uE1), b=md(p,uE2); return asinh(sqrt(a*a+b*b)); }
+float alongEdge(vec4 p){ return asinh(abs(md(p,uM[3]))); }
+float edgeH(vec4 p){ float u=alongEdge(p); float b=abs(fract(u*13.)-0.5)/13.; return -0.003*(1.-smoothstep(0.0025,0.006,b)); }
+float calcAO(vec4 p, vec4 n){ int sid=gId; float o=0., w=1.;
+  for(int i=1;i<=5;i++){ float h=0.012+0.01*float(i*i); vec4 q=hn(cosh(h)*p+sinh(h)*n); o+=w*max(h-map(q),0.); w*=0.6; }
+  gId=sid; return clamp(1.-2.4*o,0.,1.); }
+vec4 bumpN(vec4 p, vec4 n, int id, float k){
+  vec4 a=vec4(1,0,0,0); a+=md(a,p)*p; a-=md(a,n)*n;
+  if(md(a,a)<1e-3){ a=vec4(0,1,0,0); a+=md(a,p)*p; a-=md(a,n)*n; } a*=inversesqrt(md(a,a));
+  vec4 b=vec4(0,0,1,0); b+=md(b,p)*p; b-=md(b,n)*n; b-=md(b,a)*a;
+  if(md(b,b)<1e-3){ b=vec4(0,1,0,0); b+=md(b,p)*p; b-=md(b,n)*n; b-=md(b,a)*a; } b*=inversesqrt(md(b,b));
+  const float e=1.2e-3; float h0=surfH(p,id);
+  vec4 g=(surfH(p+e*a,id)-h0)/e*a+(surfH(p+e*b,id)-h0)/e*b;
+  return tp(n-k*g,p); }
+// GGX: v — направление луча (от камеры), L — на источник
+vec3 brdf(vec3 base,float metal,float rough,vec4 n,vec4 v,vec4 L,vec4 p){
+  vec4 h=tp(L-v,p); float NdL=clamp(md(n,L),0.,1.), NdV=clamp(-md(n,v),1e-3,1.), NdH=clamp(md(n,h),0.,1.), VdH=clamp(-md(v,h),0.,1.);
+  float a=rough*rough, a2=a*a, dd=NdH*NdH*(a2-1.)+1., D=a2/(3.14159*dd*dd+1e-5);
+  vec3 F0=mix(vec3(0.04),base,metal), F=F0+(1.-F0)*pow(1.-VdH,5.);
+  float k=(rough+1.)*(rough+1.)/8., G=NdV/(NdV*(1.-k)+k)*NdL/(NdL*(1.-k)+k);
+  vec3 spec=D*F*G/max(4.*NdV*NdL,1e-3);
+  return ((1.-F)*(1.-metal)*base+spec*3.14159)*NdL; }
+// Окружение: широкое отражение лампы + холодный «свет Абсолюта» + френель
+vec3 ambEnv(vec4 n, vec4 v, vec4 L, vec3 lampC, float lampK, vec3 base, float metal, float rough, float ao){
+  float NdV=clamp(-md(n,v),0.,1.);
+  vec4 r=v-2.*md(v,n)*n;
+  float c=clamp(md(r,L),0.,1.), sh=mix(120.,4.,rough);
+  vec3 env=lampC*lampK*pow(c,sh)*(0.12+sh*0.015)+vec3(0.035,0.05,0.09)*(0.5+0.5*c);
+  vec3 F0=mix(vec3(0.04),base,metal), F=F0+(1.-F0)*pow(1.-NdV,5.)*(1.-0.7*rough);
+  vec3 diffA=base*(1.-metal)*(vec3(0.030,0.038,0.062)+lampC*lampK*0.014);
+  return (diffA+env*F)*ao + vec3(0.20,0.30,0.55)*pow(1.-NdV,4.)*0.06*ao; }
+void brass(vec4 p, out vec3 base, out float rough){
+  float n=fbm(p.xyz*18.);
+  base=vec3(0.95,0.68,0.33)*(0.75+0.35*n); rough=0.26+0.25*smoothstep(0.45,0.8,n);
+  float pat=smoothstep(0.60,0.88,fbm(p.xyz*7.+3.));
+  base=mix(base,vec3(0.20,0.27,0.20),pat*0.6); rough=mix(rough,0.7,pat*0.6); }
+vec3 lampShade(vec4 n, vec4 v, vec3 lampC, float lit){
+  float f=clamp(-md(n,v),0.,1.);
+  vec3 core=lampC*(1.8+7.0*pow(f,5.));
+  vec3 off=vec3(0.03,0.04,0.07)+vec3(0.10,0.16,0.30)*pow(1.-f,3.)+vec3(0.25,0.2,0.12)*pow(f,40.);
+  return mix(off,core,lit); }
+// Витраж в грани между комнатами: свинцовые жилки по кольцам и лучам, цветные стёкла
+void glassCross(vec4 p, vec4 v, float t, inout vec3 thr, inout vec3 acc, vec3 lampC, float lit){
+  float fr=fresnel(abs(md(v,uM[0]))); float fg=exp(-t/uFog);
+  float r=acosh(max(-md(p,uP1),1.)); float a=asinh(abs(md(p,uM[2]))), b=asinh(abs(md(p,uM[3])));
+  float w=0.003+0.0016*t;
+  float lead=max(1.-smoothstep(w,w*2.,abs(r-0.17)), 1.-smoothstep(w,w*2.,abs(r-0.34)));
+  if(r>0.17) lead=max(lead,1.-smoothstep(w,w*2.,min(a,b)));
+  lead*=smoothstep(0.03,0.05,edgeDist(p));
+  vec3 tint = r<0.17? vec3(1.0,0.84,0.52) : (r<0.34? (a<b? vec3(0.60,0.86,0.95):vec3(0.96,0.66,0.58)) : vec3(0.86,0.92,0.98));
+  acc+=thr*fg*(fr*vec3(0.30,0.48,0.85)*0.18 + lead*lampC*(0.01+0.035*lit) + (1.-lead)*tint*0.010*lit);
+  thr*=mix(vec3(1.),tint,0.30)*(1.-0.26*fr)*(1.-0.85*lead); }
+`;
+
 const FS_ROOMS = HEAD + `
 uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV;
 uniform float uHasV; uniform float uBall; uniform float uParity; uniform float uCamPar;
 uniform vec4 uEnemy; uniform float uEnemyR; uniform float uEnemyAlert;
-const vec3 FOG=vec3(0.028,0.032,0.066);
+const vec3 FOG=vec3(0.020,0.025,0.052);
 float map(vec4 p){
   float a=md(p,uE1), b=md(p,uE2);
   float d=asinh(sqrt(a*a+b*b))-uTube; gId=1;
   if(uHasV>.5){ float dv=acosh(max(-md(p,uV),1.))-uBall; if(dv<d){d=dv;gId=2;} }
   float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
   return d;
-}` + NORMAL + `
+}` + NORMAL + MAT + `
+float surfH(vec4 p,int id){ return id==1? edgeH(p) : 0.; }
 // Враг — один шар в пространстве (не в фундаментальной области): пересечение с лучом в замкнутой форме.
 float sphereT(vec4 p0, vec4 v0, vec4 C, float R){
   float A=-md(p0,C), B=-md(v0,C), k=cosh(R);
   if(A<=k) return 1e9; float disc=k*k-A*A+B*B; if(disc<=0.) return 1e9;
   float u=(k-sqrt(disc))/(A+B); if(u<=1.) return 1e9; return log(u);
 }
+vec3 lampColor(int cells){ bool odd=uParity>.5 && ((cells+int(uCamPar))%2==1); return odd? vec3(0.45,0.78,1.0): vec3(1.0,0.70,0.40); }
 void main(){
   vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
   vec3 dr=normalize(vec3(uv*uTanFov,1.));
@@ -225,17 +302,15 @@ void main(){
   vec4 p0=p, v0=v;
   float tE= uEnemyR>0. ? sphereT(p0,v0,uEnemy,uEnemyR) : 1e9;
   vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; int cells=0; bool hit=false, ehit=false;
-  for(int i=0;i<160;i++){
+  vec3 lampC=lampColor(0);
+  for(int i=0;i<170;i++){
     for(int it=0;it<16;it++){
       bool any=false;
       for(int k=0;k<4;k++){
         float s=md(p,uM[k]);
         if(s>0.){
           p-=2.*s*uM[k]; v-=2.*md(v,uM[k])*uM[k]; any=true;
-          if(k==0){ cells++;
-            if(uGlass>.5){ float fr=fresnel(abs(md(v,uM[0]))); float fg=exp(-t/uFog);
-              acc+=thr*fg*fr*vec3(0.30,0.48,0.85)*0.22; thr*=vec3(0.93,0.95,0.98)*(1.-0.35*fr); }
-          }
+          if(k==0){ cells++; lampC=lampColor(cells); if(uGlass>.5) glassCross(p,v,t,thr,acc,lampC,1.); }
         }
       }
       if(!any) break;
@@ -243,33 +318,39 @@ void main(){
     d=map(p);
     if(t+d>=tE){ehit=true;break;}
     if(d<3e-4*(1.+t)){hit=true;break;}
-    adv(p,v,d); t+=d;
+    float st=d; if(uGlass>.5) st=min(st,max(asinh(-md(p,uM[0])),0.)+1e-3);
+    float sl=sinh(acosh(max(p.w,1.)));
+    acc+=thr*lampC*(0.010/(0.015+sl*sl))*min(st,0.25)*exp(-t/uFog);
+    adv(p,v,st); t+=st;
     if(t>15.||thr.g<0.02) break;
   }
   vec3 col=FOG;
   if(ehit){
+    t=tE;
     vec4 P=cosh(tE)*p0+sinh(tE)*v0, vP=sinh(tE)*p0+cosh(tE)*v0;
-    float facing=max(-md(tp(-uEnemy,P),vP),0.);
-    vec3 sc=mix(vec3(0.72,0.81,0.92), vec3(0.95,0.25,0.16), uEnemyAlert)*(0.55+0.85*facing);
-    col=mix(FOG,sc,exp(-tE/uFog));
+    vec4 n=tp(-uEnemy,P);
+    float f=clamp(-md(n,vP),0.,1.);
+    vec3 base=mix(vec3(0.80,0.80,0.76), vec3(0.85,0.22,0.14), uEnemyAlert);
+    vec3 sc=base*(0.10+0.55*f)+vec3(0.20,0.30,0.55)*pow(1.-f,4.)*0.5+vec3(1.,0.8,0.5)*pow(f,30.)*0.6;
+    sc+=mix(vec3(1.,0.75,0.3),vec3(1.,0.15,0.08),uEnemyAlert)*smoothstep(0.93,0.97,f)*3.;
+    col=mix(FOG,sc,exp(-t/uFog));
   }
   else if(hit){
     int id=gId; vec4 n=calcN(p,d);
-    bool odd=uParity>.5 && ((cells+int(uCamPar))%2==1);
-    vec3 lamp=odd? vec3(0.45,0.78,1.0): vec3(1.0,0.72,0.40);
+    if(id==1) n=bumpN(p,n,1,1.);
+    vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.))); float att=1.6/(0.18+sr*sr);
     vec3 sc;
-    if(id==3) sc=lamp*2.4;
+    if(id==3) sc=lampShade(n,v,lampC,1.);
     else{
-      vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.)));
-      float att=1.5/(0.22+sr*sr);
-      float dif=max(md(n,L),0.), head=max(-md(n,v),0.);
-      vec4 hv=tp(L-v,p); float sp=pow(max(md(n,hv),0.),48.);
-      vec3 base=id==1? vec3(0.80,0.55,0.26): vec3(0.88,0.85,0.80);
-      sc=base*(0.05+dif*att*lamp+0.22*head)+sp*att*lamp*0.5;
+      float ao=calcAO(p,n);
+      vec3 base; float metal=1., rough;
+      if(id==1){ brass(p,base,rough); float u=alongEdge(p); float gb=abs(fract(u*13.)-0.5)/13.; base*=mix(0.40,1.,smoothstep(0.002,0.006,gb)); }
+      else { base=vec3(0.78,0.80,0.84); rough=0.16+0.2*fbm(p.xyz*25.); }
+      sc=brdf(base,metal,rough,n,v,L,p)*lampC*att*mix(0.55,1.,ao)+ambEnv(n,v,L,lampC,att,base,metal,rough,ao);
     }
     col=mix(FOG,sc,exp(-t/uFog));
   }
-  fragColor=vec4(finish(acc+thr*col),1.);
+  fragColor=outc(acc+thr*col, (hit||ehit)? t : 60.);
 }`;
 
 const FS_HOUSE = HEAD + `
@@ -356,7 +437,7 @@ void main(){
     }
     col=mix(FOG,sc,exp(-t/uFog));
   }
-  fragColor=vec4(finish(acc+thr*col),1.);
+  fragColor=outc(acc+thr*col, hit? t : 60.);
 }`;
 
 const FS_PLANE = HEAD + `
@@ -412,12 +493,12 @@ void main(){
     }
     col=mix(FOG,sc,exp(-t/uFog));
   }
-  fragColor=vec4(finish(col),1.);
+  fragColor=outc(col, hit? t : 60.);
 }`;
 
 const FS_FLAT = `#version 300 es
 precision highp float;
-uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube; uniform float uBall;
+uniform vec2 uRes; uniform mat4 uCam; uniform float uTanFov; uniform float uFog; uniform float uGlass; uniform float uTube; uniform float uBall; uniform float uDirect;
 out vec4 fragColor;
 const vec3 FOG=vec3(0.028,0.032,0.066);
 const float S=1.0;
@@ -462,9 +543,9 @@ void main(){
       sc=base*(0.05+dif*att*lamp+0.22*head)+sp*att*lamp*0.5; }
     col=mix(FOG,sc,exp(-t/uFog));
   }
-  col=acc+thr*col; col=1.-exp(-col*1.15); col=pow(col,vec3(1./2.2));
-  vec2 q=gl_FragCoord.xy/uRes-.5; col*=1.-0.35*dot(q,q);
-  fragColor=vec4(col,1.);
+  col=max(acc+thr*col,0.);
+  if(uDirect>.5){ col=1.-exp(-col*1.15); col=pow(col,vec3(1./2.2)); vec2 q=gl_FragCoord.xy/uRes-.5; col*=1.-0.35*dot(q,q); fragColor=vec4(col,1.); }
+  else fragColor=vec4(col/(1.+col), (hit? t : 60.)/(1.+(hit? t : 60.)));
 }`;
 
 const FS_MAP = `#version 300 es
@@ -640,7 +721,7 @@ function roomGeom(p,r){
   const P=[O,foot([N[0]]),foot([N[0],N[1]]),foot(N)];
   const M=[0,1,2,3].map(k=>{const o=P.filter((_,i)=>i!==k);return orient(planeThrough(...o),P[k]);});
   const ideal=md(P[3],P[3])>-1e-9;
-  return {M,E1:N[0],E2:orth(N[1],N[0]),V:ideal?[0,0,0,1]:P[3],hasV:!ideal,t:shd/chd,R:M.map(refl)};
+  return {M,E1:N[0],E2:orth(N[1],N[0]),V:ideal?[0,0,0,1]:P[3],hasV:!ideal,t:shd/chd,R:M.map(refl),P1:P[1]};
 }
 function planeGeom(){
   const c=Math.cos(2*Math.PI/5),ch2=1/(1-c),chd=Math.sqrt(ch2),shd=Math.sqrt(ch2-1);
@@ -830,23 +911,32 @@ function camMatrix(){
 
 // ───────────────────────── Кадр ─────────────────────────
 let scale=matchMedia('(pointer:coarse)').matches?0.45:0.7, frameAvg=1/60, lastT=performance.now(), hudT=0;
+{const q=new URLSearchParams(location.search).get('scale');if(q&&+q>0)scale=Math.min(1,Math.max(0.1,+q));} // отладка: ?scale=0.3
 const fogEl=document.getElementById('fog'),glassEl=document.getElementById('glass'),hEl=document.getElementById('height');
+// Холст — в полном разрешении экрана (для чёткой пост-обработки), сцена — в адаптивном scale.
 function resize(){
-  const dpr=Math.min(devicePixelRatio||1,2);
-  const w=Math.max(160,Math.round(innerWidth*dpr*scale)),h=Math.max(120,Math.round(innerHeight*dpr*scale));
+  const dpr=Math.min(devicePixelRatio||1,1.25),k=Math.min(1,2200/(innerWidth*dpr));
+  const w=Math.max(160,Math.round(innerWidth*dpr*k)),h=Math.max(120,Math.round(innerHeight*dpr*k));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
 }
-function fovTan(){const asp=innerWidth/innerHeight;return Math.tan((asp<1?82:70)*Math.PI/360);}
-function render(){
+function sceneBegin(){
   resize();
-  gl.viewport(0,0,canvas.width,canvas.height);
+  const sw=Math.max(160,Math.round(canvas.width*scale)),sh=Math.max(100,Math.round(canvas.height*scale));
+  if(typeof POST!=='undefined'&&POST.begin(sw,sh))return {sw,sh,post:true};
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,canvas.width,canvas.height);
+  return {sw:canvas.width,sh:canvas.height,post:false};
+}
+function sceneEnd(sc,now){if(sc.post)POST.end(now);}
+function fovTan(){const asp=innerWidth/innerHeight;return Math.tan((asp<1?82:70)*Math.PI/360);}
+function render(now){
+  const SC=sceneBegin();
   const P=PR[world.type]; gl.useProgram(P.pr);
   const c=state[world.id];
-  U(P,'uRes',[canvas.width,canvas.height]); U(P,'uCam',camMatrix()); U(P,'uTanFov',fovTan());
+  U(P,'uRes',[SC.sw,SC.sh]); U(P,'uDirect',SC.post?0:1); U(P,'uCam',camMatrix()); U(P,'uTanFov',fovTan());
   U(P,'uFog',+fogEl.value); U(P,'uGlass',glassEl.checked?1:0);
   if(world.type==='rooms'){const g=GEO[world.id];
     U(P,'uM',g.M.flat());U(P,'uE1',g.E1);U(P,'uE2',g.E2);U(P,'uV',g.V);U(P,'uHasV',g.hasV?1:0);
-    U(P,'uBall',world.p===5?0.085:0.075);U(P,'uTube',0.04);U(P,'uParity',world.r%2===0&&world.p===5?1:0);U(P,'uCamPar',c.par);
+    U(P,'uBall',world.p===5?0.085:0.075);U(P,'uTube',0.04);U(P,'uP1',g.P1);U(P,'uParity',world.r%2===0&&world.p===5?1:0);U(P,'uCamPar',c.par);
     if(enemy){const G=c.G,Gi=new Array(16),J=[1,1,1,-1];for(let a=0;a<4;a++)for(let r=0;r<4;r++)Gi[a*4+r]=J[r]*G[r*4+a]*J[a];
       U(P,'uEnemy',apply(Gi,enemy.pos));U(P,'uEnemyR',0.09);U(P,'uEnemyAlert',enemy.alert);}
     else{U(P,'uEnemyR',0.);U(P,'uEnemyAlert',0.);}}
@@ -855,6 +945,8 @@ function render(){
   else if(world.type==='plane'){U(P,'uM',PL.M.flat());U(P,'uE1',PL.E1);U(P,'uE2',PL.E2);U(P,'uCamPar',c.par);U(P,'uLampH',1.1);U(P,'uTube',0.035);}
   else{U(P,'uTube',0.04);U(P,'uBall',0.075);}
   gl.drawArrays(gl.TRIANGLES,0,3);
+  if(typeof POST!=='undefined')POST.cfg.expo={house:0.5,plane:0.85,flat:0.9}[world.type]??1;
+  sceneEnd(SC,now||performance.now());
   if(world.type==='plane'&&MAP)renderMap(c);
 }
 function renderMap(c){
@@ -874,15 +966,33 @@ function frame(now){
   const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
   const mission=window.MISSION&&MISSION.active;
   if(mission)MISSION.frame(dt,now);
-  else{step(dt);render();updateDanger();}
+  else{step(dt);render(now);updateDanger();}
   frameAvg=frameAvg*0.92+dt*0.08;
   if(frameAvg>1/38&&scale>0.3){scale=Math.max(0.3,scale*0.94);frameAvg=1/50;}
+  else if(frameAvg>1/34&&scale<=0.3&&typeof POST!=='undefined'&&POST.cfg.kuw>0){POST.cfg.kuw=0;frameAvg=1/50;}
   else if(frameAvg<1/57&&scale<1){scale=Math.min(1,scale*1.03);frameAvg=1/50;}
   if(!mission&&now-hudT>120){hudT=now;hud();}
   requestAnimationFrame(frame);
 }
 
 // ───────────────────────── Интерфейс ─────────────────────────
+// Эмблема «Пятого Постулата»: прямоугольный пятиугольник {5,4} в диске Пуанкаре. Стороны —
+// дуги окружностей, ортогональных абсолюту; продолжены до абсолюта как полные прямые.
+function emblemSVG(cls){
+  const rv=Math.tanh(Math.acosh(1/Math.tan(Math.PI/5))/2),R=44,X=50,Y=50,c=(1+rv*rv)/(2*rv*Math.cos(Math.PI/5)),rho=Math.sqrt(c*c-1),ph=Math.acos(1/c);
+  const pt=(r,a)=>[X+R*r*Math.cos(a),Y+R*r*Math.sin(a)],f=v=>v.toFixed(2);
+  const sweep=(P,Q,C,M)=>((P[0]-C[0])*(M[1]-C[1])-(P[1]-C[1])*(M[0]-C[0]))>0?1:0;
+  let lines='',pent='';
+  for(let k=0;k<5;k++){const a0=(k*72-90)*Math.PI/180,a1=a0+1.2566370614,am=(a0+a1)/2,C=pt(c,am),M=pt(c-rho,am);
+    const P=pt(1,am-ph),Q=pt(1,am+ph),A=pt(rv,a0),B=pt(rv,a1);
+    lines+=`<path d="M${f(P[0])} ${f(P[1])}A${f(R*rho)} ${f(R*rho)} 0 0 ${sweep(P,Q,C,M)} ${f(Q[0])} ${f(Q[1])}"/>`;
+    pent+=(k?'':`M${f(A[0])} ${f(A[1])}`)+`A${f(R*rho)} ${f(R*rho)} 0 0 ${sweep(A,B,C,M)} ${f(B[0])} ${f(B[1])}`;}
+  let ticks='';for(let k=0;k<40;k++){const a=k*Math.PI/20,r1=k%8===0?1.13:1.09,p=pt(1.045,a),q=pt(r1,a);ticks+=`M${f(p[0])} ${f(p[1])}L${f(q[0])} ${f(q[1])}`;}
+  return `<svg class="${cls||''}" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="embg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1cf8e"/><stop offset=".55" stop-color="#d6a35a"/><stop offset="1" stop-color="#8a5f2c"/></linearGradient></defs>
+  <g fill="none" stroke="url(#embg)"><circle cx="50" cy="50" r="${R}" stroke-width="1.6"/><circle cx="50" cy="50" r="${R*1.045}" stroke-width=".6"/>
+  <path d="${ticks}" stroke-width=".8"/><g stroke-width=".9" stroke-opacity=".75">${lines}</g>
+  <path d="${pent}Z" fill="#d6a35a" fill-opacity=".16" stroke-width="1.8"/></g><circle cx="50" cy="50" r="2.2" fill="url(#embg)"/></svg>`;}
+document.getElementById('emb').outerHTML=emblemSVG();
 const fmt=(x,n=2)=>x.toFixed(n).replace('.',',').replace('-','−');
 const statsEl=document.getElementById('stats');
 function hud(){
@@ -935,5 +1045,6 @@ if(location.hash){const h=location.hash.slice(1);if(WORLDS.some(w=>w.id===h))sta
 setWorld(WORLDS.find(w=>w.id===startId)||WORLDS[0]);
 requestAnimationFrame(frame);
 </script>
+<script src="post.js"></script>
 <script src="mission.js"></script>
 </html>
