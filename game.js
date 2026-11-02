@@ -44,6 +44,7 @@ float sdRCone(vec3 p,float r1,float r2,float h){ vec2 q=vec2(length(p.xz),p.y); 
   if(k<0.) return length(q)-r1; if(k>a*h) return length(q-vec2(0.,h))-r2; return dot(q,vec2(a,b))-r1; }
 // Фигура в мантии: страж, Кассель, Сестра Орицикла, Бернхард, Евклид, отражение Веры
 float figureSDF(vec3 q,float sl,int vr,out int m){
+  float scl=vr==10?1.7:1.; q*=scl;
   if(sl>.5){ q.xy=rot(1.1)*q.xy; q.y+=0.03; }
   else{
     q.y+=0.006*sin(uTime*1.7+float(vr));
@@ -57,7 +58,7 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
   float d=smin(robe,mant,0.02); m=1;
   float hood=max(sdSph(q-vec3(0,0.082,-0.006),0.040),-(q.z-0.016));
   hood=max(hood,-sdSph(q-vec3(0,0.08,0.002),0.034));
-  if(vr==3||vr==6) hood=1.;                            // Бернхард и тюремщик — без капюшона
+  if(vr==3||vr==6||vr==10) hood=1.;                            // Бернхард и тюремщик — без капюшона
   if(vr==7) hood=min(hood,sdRCone(q-vec3(0,0.10,-0.012),0.03,0.003,0.06)); // остроконечный капюшон
   if(vr==5){ hood=min(sdRCone(q-vec3(0,0.09,-0.004),0.03,0.012,0.07),hood); } // митра Архипрелата
   if(hood<d){d=hood;m=5;}
@@ -89,7 +90,7 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
   if(vr==8){ float brim=sdEll(q-vec3(0,0.11,0),vec3(0.07,0.004,0.07)); float crown=sdEll(q-vec3(0,0.12,0),vec3(0.03,0.015,0.03)); if(min(brim,crown)<d){d=min(brim,crown);m=5;} }
   if(vr==9){ float halo=sdTorZ(q-vec3(0,0.085,-0.045),0.045,0.003); if(halo<d){d=halo;m=2;} }
   float pa=sdEll(vec3(abs(q.x),q.y,q.z)-vec3(0.05,0.042,0.0),vec3(0.022,0.012,0.026)); if(pa<d){d=pa;m=2;}
-  return d;
+  return d/scl;
 }
 float objSDF(int kind,vec3 q,float sl,int vr,out int m){
   if(kind==1||kind==8||kind==10) return figureSDF(q,sl,vr,m);
@@ -121,6 +122,10 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float bx=abs(mod(q.x+0.065,0.13)-0.065), by=abs(mod(q.y+0.065,0.13)-0.065);
     float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.012,rr-0.40);
     m=2; return min(ring,bars); }
+  if(kind==19){ vec3 r=q-vec3(0,0.02,0); r.yz=rot(0.55)*r.yz; float tube=sdCaps(r,vec3(0,-0.04,0),vec3(0,0.06,0),0.011);
+    float rings=min(sdTorZ(r.xzy-vec3(0,0,0.03),0.013,0.003),sdTorZ(r.xzy-vec3(0,0,-0.02),0.013,0.003));
+    float lens=sdSph(r-vec3(0,0.062,0),0.009), stand=sdCaps(q,vec3(0,0.0,0),vec3(0,-0.09,0),0.004);
+    float d=min(min(tube,rings),stand); m=2; if(lens<d){d=lens;m=6;} return d; }
   if(kind==18){ q.xz=rot(uTime*0.7)*q.xz; float l1=sdCaps(q,vec3(0,0.04,0),vec3(-0.022,-0.05,0),0.004), l2=sdCaps(q,vec3(0,0.04,0),vec3(0.022,-0.05,0.004),0.004);
     float hg=sdSph(q-vec3(0,0.046,0),0.009), arc=max(sdTorZ(q-vec3(0,0.04,0),0.05,0.0025),q.y-0.0); m=2; return min(min(l1,l2),min(hg,arc)); }
   if(kind==17){ // чертёжный стол: наклонная доска с синькой, лампа на латунной стойке
@@ -136,7 +141,7 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
 void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out vec3 base,out float metal,out float rough,out vec3 emis){
   base=vec3(0.5); metal=0.; rough=0.6; emis=vec3(0.);
   vec3 robe= vr==1? vec3(0.30,0.035,0.04) : vr==2? vec3(0.05,0.13,0.09) : vr==3? vec3(0.20,0.12,0.07) : vr==5? vec3(0.80,0.78,0.72)
-    : vr==6? vec3(0.17,0.17,0.19) : vr==7? vec3(0.09,0.08,0.16) : vr==8? vec3(0.24,0.18,0.09) : vr==9? vec3(0.86,0.84,0.79) : vec3(0.07,0.08,0.13);
+: vr==10? vec3(0.55,0.33,0.28) : vr==6? vec3(0.17,0.17,0.19) : vr==7? vec3(0.09,0.08,0.16) : vr==8? vec3(0.24,0.18,0.09) : vr==9? vec3(0.86,0.84,0.79) : vec3(0.07,0.08,0.13);
   if(mm==1){ base=robe; rough=0.8; if(sl<.5&&abs(q.y-0.012)<0.005){ brass(X,base,rough); metal=1.; } }
   else if(mm==5){ base=robe*0.65; rough=0.85; if(vr==5){ brass(X,base,rough); metal=1.; } }
   else if(mm==2){ brass(X,base,rough); metal=1.; if(vr==1){ base*=vec3(1.05,0.85,0.75); } }
@@ -635,7 +640,7 @@ const AU={ctx:null,on:true,drone:null,
 
 // ═══════════════ адаптеры геометрий ═══════════════
 const LN2=Math.LN2;
-const BOUND={18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
+const BOUND={19:0.1,18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
 // базовые операции в пространстве Лобачевского
 const HYP={dist:hyperbolicDistance,dirTo,advance:(p,u,s)=>advancePose(p,u,s)};
 
@@ -740,7 +745,7 @@ function makeHouse(L){
   const Finv=c=>mul(boostZ(c.L*LN2),parabM(Math.floor(c.X),Math.floor(c.Y)));
   const hsAbs=(X,Y,Lf,h)=>{const f=Math.pow(2,Lf);return fromHS([X*f,Y*f,Math.exp(h)*f]);};
   const floorOf=p=>{const z=toHS(p)[2];return Math.floor(Math.log2(z)+1e-9);};
-  const A={kind:'house',...HYP,
+  const A={kind:'house',L,...HYP,
     pointAt:(X,Y,Lf,h)=>hsAbs(X,Y,Lf,h??0.35),
     roomOf:p=>floorOf(p)+100,roomName:i=>L.floorNames[i-100]||('Этаж '+(i-100)),lights:false,
     lightF:()=>0.8,los:()=>true,nav:(a,b)=>b,
@@ -1005,20 +1010,49 @@ const LEVELS={
       restore(s2,o){const f=o.flags||{};if(f.s1)A.seal('gal2','post');if(f.s2)A.seal('cell','gal1');},
       abil:{blink:false,lens:true,decoy:false}};},
 
-  ch3:()=>{const L={start:[0.5,0.18,0],minFloor:-1,maxFloor:3,floorNames:{'-1':'Подвал','0':'Этаж 0 · основание','1':'Этаж 1','2':'Этаж 2','3':'Этаж 3 · обитель Криволинейных'}};
+  ch3:()=>{const L={start:[0.5,0.18,0],minFloor:-1,maxFloor:2,floorNames:{'-1':'Подвал','0':'Этаж 0 · основание','1':'Этаж 1 · жилые залы','2':'Этаж 2','3':'Этаж 3 · балкон Абсолюта'}};
     const A=makeHouse(L);const P=(x,y,f,h)=>A.pointAt(x,y,f,h);
-    const it=[{id:'wachter',kind:2,pos:P(0.7,0.6,1,0.4),lemma:'wachter'},{id:'horocycle',kind:2,pos:P(0.5,0.85,2,0.4),lemma:'horocycle'},
-      {id:'minkowski',kind:2,pos:P(1.5,1.5,0,0.35),lemma:'minkowski'},{id:'sh0',kind:7,pos:P(0.3,0.7,1,0.3)},{id:'sh1',kind:7,pos:P(0.8,0.3,2,0.3)},
+    const it=[{id:'meter',kind:4,pos:P(0.62,0.42,0,0.3),doc:'meter'},
+      {id:'resident',kind:8,vr:3,pos:P(0.78,0.72,1,0.32),name:'Жилец Башни',talk:true,keep:true},
+      {id:'child',kind:8,vr:10,pos:P(0.3,0.62,1,0.2),name:'Ребёнок',talk:true,keep:true},
+      {id:'pseudo',kind:4,pos:P(0.82,0.85,2,0.4),doc:'pseudo'},
+      {id:'wachter',kind:2,pos:P(0.7,0.6,1,0.4),lemma:'wachter'},{id:'horocycle',kind:2,pos:P(0.5,0.85,2,0.4),lemma:'horocycle'},
+      {id:'minkowski',kind:2,pos:P(1.5,1.5,0,0.35),lemma:'minkowski'},{id:'sh0',kind:7,pos:P(0.3,0.75,1,0.3)},{id:'sh1',kind:7,pos:P(0.8,0.3,2,0.3)},
       {id:'desk_circ',kind:17,pos:P(0.3,0.25,2,0.3),puzzle:'circ',name:'пароль Криволинейных'},{id:'r151',kind:4,pos:P(0.8,0.15,1,0.4),doc:'r151'},
-      {id:'oricycla',kind:8,vr:2,pos:P(1.5,0.5,3,0.33),name:'Сестра Орицикла',talk:true,cond:S=>!!S.flags.circDone}];
+      ...[[1.15,0.25],[1.85,0.3],[1.5,0.92]].map((q,i)=>({id:'v'+(i+1),kind:19,pos:P(q[0],q[1],3,0.3),name:'точка обзора',talk:true,keep:true,cond:S=>!!S.flags.circDone})),
+      {id:'oricycla',kind:8,vr:2,pos:P(1.5,0.5,3,0.33),name:'Сестра Орицикла',talk:true,cond:S=>(S.flags.views||0)>=3},
+      {id:'node',kind:9,pos:P(1.5,0.5,3,0.6),name:'Верхняя Машина Башни',talk:true,keep:true,rad:0.45,cond:S=>!!S.got.oricycla},
+      {id:'exit',kind:5,pos:P(0.5,0.5,0,0.12),cond:S=>!!S.flags.ch3done,exit:S=>!!S.flags.ch3done}];
     const gd=[{name:'Надзиратель Аммоний',vr:7,route:A.route([[0.55,0.45,1],[0.92,0.45,1],[0.92,0.92,1],[0.55,0.92,1]])},
       {name:'Надзиратель Дидим',vr:7,route:A.route([[0.08,0.5,2],[0.9,0.5,2],[0.9,0.12,2]],1.6)},
       {name:'Надзиратель Филон',vr:7,route:A.route([[1.2,0.2,2],[1.8,0.8,2]],2)}];
+    const fl=S=>S.room-100;
     return {A,items:it,guards:gd,
-      objectives:S=>[{t:'Решить пароль Криволинейных — стол на втором этаже',done:!!S.flags.circDone},{t:'Подняться на третий этаж',done:(S.room-100)>=3},{t:'Найти Сестру Орициклу',done:S.got.oricycla,locked:!S.flags.circDone}],
-      onSolve(pz){if(pz==='circ'){campaign.lemmas.farkas=1;saveCampaign();say('circdone');showLemma('farkas');}},
-      onRoom(r){if(r-100===2)say('floor2');},
-      onTalk(id){if(id==='oricycla'){scene(CH().scene,()=>{campaign.decoy=1;saveCampaign();completeChapter();});}},
+      objectives:S=>{const o=[{t:'Измерить зал: мерный прибор на этаже 0',done:!!S.got.meter},
+        {t:'Пароль Криволинейных — чертёжный стол на этаже 2',done:!!S.flags.circDone},
+        {t:'Балкон Абсолюта: точки обзора ('+(S.flags.views||0)+'/3)',done:(S.flags.views||0)>=3,locked:!S.flags.circDone},
+        {t:'Встретить Сестру Орициклу',done:!!S.got.oricycla,locked:(S.flags.views||0)<3}];
+        if(S.choice==='evac')o.push({t:'Вывести жильцов: этаж 1 ('+(S.flags.evac||0)+'/2)',done:(S.flags.evac||0)>=2});
+        if(S.choice==='node')o.push({t:'Развести контакты верхнего узла Машины',done:!!S.flags.nodeOff});
+        if(S.choice)o.push({t:'Спуститься к люку в основании',locked:!S.flags.ch3done});
+        return o;},
+      onRoom(r){if(fl(S)===1){say('floor1');say('stealth');}if(fl(S)===2)say('floor2');},
+      onLensOn(){say('lens');},
+      onSolve(pz){if(pz==='circ'){campaign.lemmas.farkas=1;saveCampaign();L.maxFloor=3;say('circdone');showLemma('farkas');}},
+      onTalk(id){
+        if(id==='resident'||id==='child'){if(S.choice==='evac'&&!S.got[id]){S.got[id]=1;S.flags.evac=(S.flags.evac||0)+1;say([['vera','Уходите вниз, в подполье. Сейчас.']]);
+            if(S.flags.evac>=2){S.flags.ch3done=1;say('evacd');}ui.obj();}else say('talk:'+id);return;}
+        if(/^v[123]$/.test(id)){if(S.flags[id])return;S.flags[id]=1;S.flags.views=(S.flags.views||0)+1;say(id);ui.obj();
+          if(S.flags.views>=3)setTimeout(()=>scene(CH().lines.defect,()=>{campaign.defectSight=1;saveCampaign();toast('Линза видит дефект');ui.obj();}),5200);return;}
+        if(id==='oricycla'){scene(CH().scene,()=>{campaign.decoy=1;S.abil.decoy=true;saveCampaign();const C=CH().choice;
+          choose('vera',C.q,C.a,k=>{S.choice=C.a[k].id;campaign.ch3choice=S.choice;saveCampaign();
+            const K=new Guard({name:'Циркулятор Кассель',kassel:true,route:A.route([[0.2,0.25,1],[0.85,0.8,1]],1.6)},S.guards.length);S.guards.push(K);
+            for(const G of S.guards){if(G.sleep)continue;G.alert=Math.max(G.alert,0.25);}
+            if(S.choice==='strike'){S.flags.ch3done=1;AU.tone(60,1.2,'sawtooth',0.08);say('strike');}
+            say('kassel');ui.obj();save();lock();});});return;}
+        if(id==='node'){if(S.choice!=='node'){toast('Машина гудит над балконом');return;}if(S.flags.nodeOff)return;S.flags.nodeOff=1;S.flags.ch3done=1;say('node');ui.obj();}},
+      onExit(){const w=S.choice==='strike'?'oricycla':'nikolai';scene([[w,CH().endBy[S.choice]||'']],()=>completeChapter());},
+      restore(s2,o){const f=o.flags||{};if(f.circDone)L.maxFloor=3;if(o.choice&&s2.guards.length<o.guards.length)s2.guards.push(new Guard({name:'Циркулятор Кассель',kassel:true,route:A.route([[0.2,0.25,1],[0.85,0.8,1]],1.6)},s2.guards.length));},
       abil:{blink:true,lens:true,decoy:false}};},
 
   ch4:()=>{const A=makePlane();const P=(r,d)=>A.pointAt(r,d);
@@ -1278,9 +1312,9 @@ function fresh(chIdx){
   s.start=A.pos();
   return s;}
 function serialize(){return JSON.stringify({v:2,ch:S.ch,c:S.c,mana:S.mana,abil:S.abil,got:S.got,lit:S.lit,
-  clar:S.clar,guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags,escape:S.escape||null,stage:S.stage||0,race:S.race||null,straight:S.straight||0});}
+  clar:S.clar,guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags,escape:S.escape||null,stage:S.stage||0,race:S.race||null,straight:S.straight||0,choice:S.choice||null});}
 function deserialize(str){const o=JSON.parse(str);if(o.v!==2)return null;const s=fresh(o.ch);
-  Object.assign(s,{c:o.c,mana:o.mana,clar:o.clar??1,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags,escape:o.escape||null,stage:o.stage||0,race:o.race||null,straight:o.straight||0});
+  Object.assign(s,{c:o.c,mana:o.mana,clar:o.clar??1,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags,escape:o.escape||null,stage:o.stage||0,race:o.race||null,straight:o.straight||0,choice:o.choice||null});
   if(LV.restore)LV.restore(s,o);
   o.guards.forEach((gj,i)=>{const G=s.guards[i];if(!G)return;Object.assign(G,gj);G.scan=null;if(G.state==='chase'){G.state='search';G.timer=0;}G.alert=Math.min(G.alert,0.6);});
   s.room=-1;return s;}
@@ -1342,8 +1376,8 @@ function interactTarget(){const A=S.A,p=A.pos();
   for(const G of S.guards){if(G.sleep||G.state==='chase')continue;const d=hyperbolicDistance(p,G.pos);
     if(d<0.45){const ang=Math.acos(clamp(md(G.dir,dirTo(G.pos,p)),-1,1));
       if(ang>G.fov/2*0.85||G.alert<0.35)return G.kassel?{type:'none',label:'Кассель не спит: маятник качается и во сне'}:{type:'guard',G,label:'Усыпить стража'};}}
-  for(const it of visibleItems()){if(it.kind===5||it.inert)continue;if(A.dist(p,it.pos)<(it.kind===16&&it.puzzle?0.5:(it.rad||0.3)))
-    return {type:'item',it,label:it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?'Коснуться камня':'Взять: '+it.name};}
+  {let best=null,bd=1e9;for(const it of visibleItems()){if(it.kind===5||it.inert)continue;const dd=A.dist(p,it.pos),rr=it.kind===16&&it.puzzle?0.5:(it.rad||0.3);if(dd<rr&&dd/rr<bd){bd=dd/rr;best=it;}}const it=best;if(it)
+    return {type:'item',it,label:it.kind===19?'Посмотреть в трубу':it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?'Коснуться камня':'Взять: '+it.name};}
   if(A.lights){const r=S.room;if(A.lampNear(r,p))return {type:'lamp',r,label:S.lit[r]?'Погасить лампу':'Зажечь лампу'};}
   return null;}
 function interact(){const t=interactTarget();if(!t||t.type==='none')return;
@@ -1352,7 +1386,7 @@ function interact(){const t=interactTarget();if(!t||t.type==='none')return;
     if(it.kind===16&&it.puzzle){say('door');openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
     if(it.kind===17){if(S.flags[it.puzzle+'Done']){toast('Задача уже решена');return;}openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
     if(it.lock&&!S.flags[it.lock+'Done']){say('locked');toast('Заперто');return;}
-    if(it.talk){S.got[it.id]=1;ui.obj();LV.onTalk&&LV.onTalk(it.id);return;}
+    if(it.talk){if(!it.keep)S.got[it.id]=1;ui.obj();LV.onTalk&&LV.onTalk(it.id);return;}
     S.got[it.id]=1;AU.pick();
     if(it.kind===2){campaign.lemmas[it.lemma]=1;saveCampaign();showLemma(it.lemma);}
     else if(it.kind===7){S.mana=Math.min(1,S.mana+0.5);toast('Дефект +0,5');}
@@ -1655,6 +1689,13 @@ function drawKlein(){const on=S.lensOn&&!S.over&&!S.dlg&&S.A.kind!=='flat';klein
     if(cur>=0){A.roomFaces(cur).forEach((n,k)=>{const w=-md(n,p);if(Math.abs(w)<1e-6)return;const q=[md(n,b[0])/w,md(n,b[1])/w],l=Math.hypot(...q);if(l<1)return;
       const lim=Math.min(W,H)*0.49/Rk,qq=l>lim?q.map(v=>v*lim/l):q,P=sc(qq);x.fillStyle='rgba(255,226,160,.9)';x.beginPath();x.arc(...P,4,0,7);x.fill();
       if(k===0){x.fillText('полюс стены',P[0],P[1]-10);}});}}
+  if(A.kind==='house'){const c=S.c,f=2**c.L,cx0=Math.floor(c.X),cy0=Math.floor(c.Y),W0=K([0,0,1,1]);
+    x.strokeStyle='rgba(200,235,255,.55)';x.lineWidth=1.2;x.beginPath();
+    for(let i=cx0-2;i<=cx0+3;i++)for(let j=cy0-2;j<=cy0+3;j++){const X0=i*f,Y0=j*f,r2=X0*X0+Y0*Y0,n=[2*X0,2*Y0,r2-1,r2+1];x.moveTo(...sc(K(n)));x.lineTo(...sc(W0));}
+    x.stroke();const Pw=sc(W0);x.fillStyle='rgba(255,226,160,.95)';x.beginPath();x.arc(...Pw,6,0,7);x.fill();x.fillText('ω — общий конец параллельных',Pw[0],Pw[1]-12);}
+  if(campaign.defectSight){for(const it of visibleItems()){if(it.kind===7||it.kind===9){const P=sc(K(it.pos)),g=x.createRadialGradient(...P,0,...P,it.kind===9?40:18);
+    g.addColorStop(0,it.kind===9?'rgba(255,250,235,.9)':'rgba(190,120,255,.9)');g.addColorStop(1,'rgba(150,80,255,0)');x.fillStyle=g;x.beginPath();x.arc(...P,it.kind===9?40:18,0,7);x.fill();}}
+    x.fillStyle='rgba(190,140,255,.8)';x.fillText('дефект',cx,cy+Rk+20);}
   // спящий орицикл: окружность Пуанкаре, касающаяся абсолюта, перенесённая в модель Клейна
   x.strokeStyle='rgba(159,220,138,.75)';x.lineWidth=1.6;x.beginPath();const t0=3.8,rh=0.32;
   for(let i=0;i<=80;i++){const a=i/80*Math.PI*2,z=[(1-rh)*Math.cos(t0)+rh*Math.cos(a),(1-rh)*Math.sin(t0)+rh*Math.sin(a)],r2=z[0]*z[0]+z[1]*z[1],kq=[2*z[0]/(1+r2),2*z[1]/(1+r2)],P=sc(kq);i?x.lineTo(...P):x.moveTo(...P);}x.stroke();
