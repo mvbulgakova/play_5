@@ -107,6 +107,7 @@ const P={
   resident:{name:'Жилец Башни',sub:'Криволинейные',hair:'wavy',bust:'coat'},
   child:{name:'Ребёнок Башни',sub:'Криволинейные',female:1,hair:'short',bust:'dress'},
   villager:{name:'Изгнанник',sub:'деревня на Равнине',hair:'short',beard:'mustache',bust:'coat'},
+  worker:{name:'Истопник',sub:'Зал украденных углов',hair:'short',beard:'full',bust:'uniform'},
   guard:{name:'Чертёжник',sub:'патруль Церкви',hair:'hood',bust:'hood'},
   // исторические лица
   h_euclid:{name:'Евклид',sub:'«Начала», ок. 300 до н. э.',cond:'Подлинных изображений Евклида не существует; силуэт условный.',hair:'classic',beard:'long',bust:'toga'},

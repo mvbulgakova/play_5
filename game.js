@@ -1129,25 +1129,70 @@ const LEVELS={
     function decide(){S.flags.decided=1;ui.obj();}},
 
   ch5:()=>{const L={poly:[4,5],pal:2,lamp:[1.0,0.86,0.66],fog:7,
-      rooms:[['gate',null,null,'Ворота',0],['nave','gate',[0,0,1],'Неф',1],['cloi','nave',[1,0,0.3],'Клуатр',0],['scri','cloi',[1,0,-0.2],'Скрипторий',1],
-        ['reli','nave',[-1,0,0.3],'Реликварий',0],['stair','nave',[0,1,0.6],'Лестница',0],['choir','stair',[0,1,0.3],'Хоры',1],['sanct','choir',[0.3,1,0],'Святилище',1],
-        ['crypt','reli',[-0.5,-1,0.2],'Крипта',0],['loggia','cloi',[0.5,1,0.3],'Лоджия',0]],
-      seal:[['gate','sanct']],start:{room:'gate',toward:'nave'}};
-    const A=makeRooms(L);const P=(r,o)=>A.pointIn(r,o);
-    const sc=A.ROOMS[A.RI('sanct')].c,gt=A.ROOMS[A.RI('gate')].c;
-    const mach=advancePose(sc,dirTo(sc,gt),-0.38).p;
-    const it=[{id:'beltrami',kind:2,pos:P('crypt',[0.2,0.25,-0.1]),lemma:'beltrami'},{id:'klein',kind:2,pos:P('loggia',[-0.2,0.22,0.12]),lemma:'klein'},
-      {id:'sh0',kind:7,pos:P('scri',[0.22,-0.2,0.1])},{id:'sh1',kind:7,pos:P('reli',[-0.2,0.2,-0.15])},{id:'r001',kind:4,pos:P('crypt',[-0.2,-0.2,0.15]),doc:'r001'},
-      {id:'flight',kind:5,pos:advancePose(gt,dirTo(gt,A.ROOMS[A.RI('nave')].c),-0.35).p,face:A.ROOMS[A.RI('nave')].c,cond:S=>!!S.escape,fin:true},
-      {id:'grille',kind:16,pos:A.faceCenter('gate','sanct'),face:sc,inert:true},
-      {id:'machine',kind:9,pos:mach,name:'Главная Машина Прямизны',talk:true,rad:0.42},
-      {id:'euclid',kind:8,vr:5,pos:advancePose(mach,perpAt(mach,dirTo(mach,sc)),0.28).p,face:gt,inert:true}];
-    const gd=[{name:'Страж Нефа Варсонофий',vr:9,route:A.route(['nave','cloi','scri','cloi'])},{name:'Страж Реликвий Поликарп',vr:9,route:A.route(['nave','reli','crypt','reli'])},
-      {name:'Страж Святилища Евлогий',vr:9,route:A.route(['choir','sanct'],2.4)},{name:'Циркулятор Кассель',route:A.route(['stair','choir'],2.2),kassel:true}];
+      rooms:[['gate',null,null,'Врата трёх геометрий',0],['nave','gate',[0,0,1],'Неф',1],['hall','nave',[1,0,0.3],'Зал украденных углов',1],['scri','hall',[1,0,-0.2],'Реестр',1],
+        ['cloi','nave',[-1,0,0.3],'Клуатр',0],['crypt','cloi',[-0.5,-1,0.2],'Крипта',0],['loggia','hall',[0.5,1,0.3],'Лоджия',0],
+        ['stair','nave',[0,1,0.6],'Лестница',0],['choir','stair',[0,1,0.3],'Хоры',1],['sanct','choir',[0.3,1,0],'Собор Прямых Углов',1],['heart','sanct',[0,1,0.4],'Сердце Машин',1]],
+      seal:[['gate','nave'],['sanct','heart']],start:{room:'gate',toward:'nave'}};
+    const A=makeRooms(L);const P=(r,o)=>A.pointIn(r,o),C=id=>A.ROOMS[A.RI(id)].c;
+    const sc=C('sanct'),gt=C('gate'),hc=C('heart'),hl=C('hall');
+    const gateSanct=A.ROOMS[A.RI('gate')].nb.includes(A.RI('sanct'))||Math.abs(hyperbolicDistance(gt,sc)-hyperbolicDistance(gt,C('nave')))<0.01;
+    if(gateSanct)L.seal.push(['gate','sanct']);A.seal&&gateSanct&&A.seal('gate','sanct');
+    const mach=advancePose(hc,dirTo(hc,sc),-0.3).p,machH=advancePose(hl,dirTo(hl,C('nave')),-0.3).p;
+    const hp=perpAt(machH,dirTo(machH,hl)),hq=perpAt(machH,dirTo(machH,hl),hp);
+    const node=(k)=>{const d=dirTo(hc,sc),w=perpAt(hc,d);return advancePose(hc,tangent(d.map((x,i)=>Math.cos(k)*x+Math.sin(k)*w[i]),hc),0.3).p;};
+    const it=[
+      {id:'door_h',kind:16,pos:A.faceCenter('gate','nave'),face:gt,talk:true,keep:true,name:'Гиперболическая дверь',rad:0.5,cond:S=>!S.flags.gateOpen},
+      {id:'door_e',kind:16,pos:P('gate',[0.47,0,0]),face:gt,talk:true,keep:true,name:'Евклидова дверь',rad:0.5,cond:S=>!S.lensOn&&!S.flags.gateOpen},
+      {id:'door_s',kind:16,pos:P('gate',[-0.47,0,0]),face:gt,talk:true,keep:true,name:'Сферическая дверь',rad:0.5,cond:S=>!S.lensOn&&!S.flags.gateOpen},
+      ...(gateSanct?[{id:'grille',kind:16,pos:A.faceCenter('gate','sanct'),face:sc,inert:true}]:[]),
+      {id:'machH',kind:9,pos:machH,name:'Печь углов',inert:true,rad:0.42},
+      ...[0,1,2,3,4,5].map(k=>({id:'fall'+k,kind:7,pos:machH,inert:true})),
+      {id:'worker',kind:8,vr:8,pos:P('hall',[0.15,-0.25,-0.1]),face:machH,name:'Истопник',talk:true,keep:true},
+      {id:'registry',kind:4,pos:P('scri',[0.1,-0.2,0.1]),doc:'registry',name:'Главный реестр'},
+      {id:'beltrami',kind:2,pos:P('crypt',[0.2,0.25,-0.1]),lemma:'beltrami'},{id:'klein',kind:2,pos:P('loggia',[-0.2,0.22,0.12]),lemma:'klein'},
+      {id:'sh0',kind:7,pos:P('cloi',[0.22,-0.2,0.1])},{id:'sh1',kind:7,pos:P('stair',[-0.2,0.2,-0.15])},{id:'sh2',kind:7,pos:P('loggia',[0.2,-0.2,0.1])},{id:'r001',kind:4,pos:P('crypt',[-0.2,-0.2,0.15]),doc:'r001'},
+      {id:'euclid',kind:8,vr:5,pos:advancePose(sc,dirTo(sc,hc),0.25).p,face:C('choir'),name:'Архипрелат Евклид',talk:true,keep:true,cond:S=>!S.flags.nodes},
+      {id:'machine',kind:9,pos:mach,name:'Сердце Машин',inert:true,rad:0.42},
+      {id:'nodeS',kind:17,puzzle:'straightSq',pos:node(-1.1),name:'Узел Прямизны',cond:S=>!!S.flags.nodes&&!S.escape},
+      {id:'nodeC',kind:17,puzzle:'breakEdge',pos:node(1.1),name:'Узел Кривизны',cond:S=>!!S.flags.nodes&&!S.escape},
+      {id:'nodeP',kind:17,puzzle:'compat',pos:advancePose(hc,dirTo(hc,sc),0.2).p,name:'Пустой стол',cond:S=>!!S.flags.nodes&&!S.escape,req:S=>!!S.flags.secret,reqLine:'emptyTable'},
+      {id:'flight',kind:5,pos:advancePose(gt,dirTo(gt,C('nave')),-0.35).p,face:C('nave'),cond:S=>!!S.escape,fin:true}];
+    const gd=[{name:'Страж Нефа Варсонофий',vr:9,route:A.route(['nave','cloi','crypt','cloi'])},{name:'Страж Зала Поликарп',vr:9,route:A.route(['hall','scri','hall','loggia'],2)},
+      {name:'Страж Собора Евлогий',vr:9,route:A.route(['choir','sanct'],2.4)},{name:'Циркулятор Кассель',route:A.route(['stair','choir'],2.2),kassel:true}];
+    const K=()=>S.guards.find(g=>g.kassel);
+    const mercy=()=>!(campaign.kchase>0)&&!(S.stats.kchase>0);
     return {A,items:it,guards:gd,
-      objectives:S=>S.escape?[{t:'Бежать из Цитадели — к Воротам, в обход ребра'+(S.escape.id==='postulate'?' (охотится только Кассель)':'')}]:[{t:'Обойти ребро и попасть в Святилище',done:S.room===A.RI('sanct')||S.got.machine},{t:'Подойти к Главной Машине Прямизны',done:S.got.machine}],
-      onRoom(r){if(r===A.RI('choir'))say('near');},
-      onTalk(id){if(id==='machine')debate();},
+      objectives:S=>{if(S.escape)return [{t:'Бежать из Цитадели — к Вратам, в обход ребра'+(S.escape.id==='postulate'?(K()&&!K().passive?' (охотится только Кассель)':' (никто не преследует)'):'')}];
+        const o=[{t:'Пройти Врата трёх геометрий',done:!!S.flags.gateOpen}];
+        o.push({t:'Найти зал украденных углов',done:!!S.flags.hall,locked:!S.flags.gateOpen});
+        o.push({t:'Главный реестр вычеркнутых',done:!!S.got.registry,locked:!S.flags.gateOpen});
+        o.push({t:'Подняться в Собор Прямых Углов',done:!!S.flags.sanct,locked:!S.flags.gateOpen});
+        if(S.flags.sanct)o.push({t:'Говорить с Архипрелатом Евклидом',done:!!S.flags.nodes});
+        if(S.flags.nodes)o.push({t:'Сердце Машин: выбрать узел и начертить',done:!!S.escape});return o;},
+      marks:S=>{const m=[];if(!S.flags.gateOpen)m.push({p:A.faceCenter('gate','nave'),c:'#e8b866',r:10});
+        else if(!S.flags.nodes)m.push({p:sc,c:'#e8b866',r:10});else if(!S.escape)m.push({p:hc,c:'#6fd3ff',r:10});else m.push({p:gt,c:'#ffffff',r:11});return m;},
+      start(){say('start');setTimeout(()=>!S.flags.gateOpen&&say('gates'),5200);},
+      tick(dt){const t=S.time;for(let k=0;k<6;k++){const it2=S.items.find(i=>i.id==='fall'+k);if(!it2)continue;const ph=(t*0.35+k/6)%1,a=k*1.05+t*0.2;
+          const w=tangent(hp.map((x,i)=>Math.cos(a)*x+Math.sin(a)*hq[i]),machH);it2.pos=advancePose(advancePose(machH,dirTo(machH,hl),0.1+0.25*(1-ph)).p,w,0.12).p;}},
+      onRoom(r){const R=id=>r===A.RI(id);
+        if(R('hall')&&!S.flags.hall){S.flags.hall=1;say('hall');ui.obj();}
+        if(R('stair')&&!S.flags.kmet){S.flags.kmet=1;const G=K();if(!G)return;
+          if(mercy()){G.passive=true;G.state='return';G.alert=0;scene(CH().kasselMercy,()=>{const Q=CH().kasselMercyChoice;choose('vera',Q.q,Q.a,k=>{
+              if(Q.a[k].id==='give'){S.flags.kgive=1;campaign.kasselSpared=1;saveCampaign();G.route=A.route(['stair'],99);scene(CH().kasselSpared,()=>{ui.obj();save();lock();});}
+              else{toast('Кассель смотрит вслед. Маятник неподвижен.');ui.obj();save();lock();}});});}
+          else{G.state='search';G.goal=A.pos();G.alert=0.5;G.timer=0;say('kasselHunt');}}
+        if(R('choir'))say('near');
+        if(R('sanct')&&!S.flags.sanct){S.flags.sanct=1;ui.obj();}
+        if(R('heart')&&!S.flags.ori){S.flags.ori=1;say(campaign.ch3choice==='strike'||campaign.ch4choice==='strike'?'oriLink:strike':'oriLink:other');}},
+      onPick(id){if(id==='registry'){if(Object.keys(campaign.records||{}).length>=4)setTimeout(()=>say('chorus'),6500);ui.obj();}},
+      onTalk(id){
+        if(id==='door_h'){if(!S.lensOn){toast('Три двери — одинаковы. Посмотрите сквозь Линзу (V)');return;}
+          S.flags.gateOpen=1;A.unseal('gate','nave');AU.tone(70,0.8,'sawtooth',0.06);toast('Гиперболическая дверь: пять кубов у ребра, 5 × 72° = 360°');ui.obj();save();return;}
+        if(id==='door_e'||id==='door_s'){say(id==='door_e'?'door:euclid':'door:sphere');return;}
+        if(id==='worker'){say('talk:worker');return;}
+        if(id==='euclid'&&!S.flags.nodes)debate();},
+      onSolve(pz){const id={straightSq:'straight',breakEdge:'curved',compat:'postulate'}[pz];if(id)startEscape(id,S.flags.score||0);},
+      restore(s2,o){const f=o.flags||{};if(f.gateOpen)A.unseal('gate','nave');if(f.nodes)A.unseal('sanct','heart');},
       abil:{blink:true,lens:true,decoy:true}};},
 };
 
@@ -1424,14 +1469,14 @@ function interactTarget(){const A=S.A,p=A.pos();
     if(d<0.45){const ang=Math.acos(clamp(md(G.dir,dirTo(G.pos,p)),-1,1));
       if(ang>G.fov/2*0.85||G.alert<0.35)return G.kassel?{type:'none',label:'Кассель не спит: маятник качается и во сне'}:{type:'guard',G,label:'Усыпить стража'};}}
   {let best=null,bd=1e9;for(const it of visibleItems()){if(it.kind===5||it.inert)continue;const dd=A.dist(p,it.pos),rr=it.kind===16&&it.puzzle?0.5:(it.rad||0.3);if(dd<rr&&dd/rr<bd){bd=dd/rr;best=it;}}const it=best;if(it)
-    return {type:'item',it,label:it.kind===19?'Посмотреть в трубу':it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?(/^post/.test(it.id)?'Отметить веху '+(+it.id.slice(4)+1):'Коснуться камня'):'Взять: '+it.name};}
+    return {type:'item',it,label:it.kind===19?'Посмотреть в трубу':it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===16&&it.talk?'Осмотреть: '+it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?(/^post/.test(it.id)?'Отметить веху '+(+it.id.slice(4)+1):'Коснуться камня'):'Взять: '+it.name};}
   if(A.lights){const r=S.room;if(A.lampNear(r,p))return {type:'lamp',r,label:S.lit[r]?'Погасить лампу':'Зажечь лампу'};}
   return null;}
 function interact(){const t=interactTarget();if(!t||t.type==='none')return;
   if(t.type==='guard'){t.G.sleep=true;t.G.alert=0;t.G.state='sleep';S.stats.sleeps++;AU.sleep();say('sleep');}
   else if(t.type==='item'){const it=t.it;
     if(it.kind===16&&it.puzzle){say('door');openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
-    if(it.kind===17){if(S.flags[it.puzzle+'Done']){toast('Задача уже решена');return;}openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
+    if(it.kind===17){if(it.req&&!it.req(S)){say(it.reqLine);return;}if(S.flags[it.puzzle+'Done']){toast('Задача уже решена');return;}openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
     if(it.lock&&!S.flags[it.lock+'Done']){say('locked');toast('Заперто');return;}
     if(it.talk){if(!it.keep)S.got[it.id]=1;ui.obj();LV.onTalk&&LV.onTalk(it.id);return;}
     S.got[it.id]=1;AU.pick();
@@ -1491,7 +1536,7 @@ function updateGuard(G,dt,p,lightF,motionF){
     if(hyperbolicDistance(G.pos,S.decoy.pos)<0.35){bark(G,'decoy');S.decoy=null;}}}
   for(const H of S.guards)if(H!==G&&H.sleep&&!H.found&&G.sees_(H.pos,2.6)){H.found=true;S.stats.bodies++;
     G.alert=Math.max(G.alert,0.75);G.state='search';G.goal=H.pos.slice();G.timer=0;G.scan=null;AU.alert();bark(G,'body');}
-  if(G.alert>=1&&G.state!=='chase'){G.state='chase';G.scan=null;S.stats.alerts++;AU.alert();bark(G,'chase');say('seen');
+  if(G.alert>=1&&G.state!=='chase'){G.state='chase';G.scan=null;S.stats.alerts++;if(G.kassel)S.stats.kchase=(S.stats.kchase||0)+1;AU.alert();bark(G,'chase');say('seen');
     for(const H of S.guards)if(H!==G&&!H.sleep&&!H.passive&&hyperbolicDistance(H.pos,G.pos)<3){H.alert=Math.max(H.alert,0.7);if(H.state!=='chase'){H.state='search';H.goal=p.slice();H.timer=0;H.scan=null;}}}
   const dP=hyperbolicDistance(G.pos,p);
   switch(G.state){
@@ -1526,7 +1571,7 @@ function failScreen(F){if(S.over)return;S.over=true;AU.fail();
   screenShow(`<div class="ch">${CH().n} · провал</div><h2>${F.t}</h2><p>${F.x}</p>
   <div class="row">${hasSave()?'<button class="btn main" data-a="load">Загрузить сохранение</button>':''}<button class="btn${hasSave()?'':' main'}" data-a="restart">Начать главу заново</button><button class="btn" data-a="menu">В меню</button></div>`);}
 function completeChapter(){if(S.over)return;S.over=true;AU.win();
-  const st=S.stats;campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;
+  const st=S.stats;campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;campaign.kchase=(campaign.kchase||0)+(st.kchase||0);
   campaign.unlocked=Math.max(campaign.unlocked,Math.min(S.ch+1,CHS.length-1));saveCampaign();
   try{localStorage.removeItem(SAVE_KEY);}catch(_){}
   const tm=Math.floor(S.time/60)+':'+String(Math.floor(S.time%60)).padStart(2,'0');
@@ -1546,22 +1591,30 @@ function debate(){let i=0,score=0;
   scene(STORY.debateIntro,()=>{S.dlg=true;const ask=()=>{if(i>=STORY.debate.length){finale(score);return;}
     const D=STORY.debate[i++];
     choose('euclid',D.claim,D.answers,k=>{const ok=!!D.answers[k].ok;if(ok)score++;scene([['euclid',ok?D.yes:D.no]],ask);});};ask();});}
-function finale(score){const lem=Object.keys(campaign.lemmas).length,secret=score===STORY.debate.length&&lem>=12;
-  const after=score===STORY.debate.length?STORY.debateWin:STORY.debateLose;
-  scene(after,()=>{const opts=STORY.choices.filter(c=>!c.secret||secret);
-    choose('vera',STORY.choiceText+(secret?'':'<br><small style="color:var(--muted)">'+(score<STORY.debate.length?'Евклид не убеждён до конца.':'Чтобы начертить ему абсолют, нужно знать больше лемм ('+lem+' из 12).')+'</small>'),opts,k=>startEscape(opts[k].id,score));});}
+function finale(score){const lem=Object.keys(campaign.lemmas).length,win=score===STORY.debate.length,secret=win&&lem>=12;
+  S.flags.score=score;S.flags.secret=secret?1:0;
+  scene([...(win?STORY.debateWin:STORY.debateLose),...STORY.truth,...CH().lines.nodes],()=>{S.flags.nodes=1;S.A.unseal&&S.A.unseal('sanct','heart');
+    if(!secret)toast(win?'Пустой стол ждёт: нужно не меньше 12 лемм ('+lem+')':'Евклид не убеждён до конца — пустой стол закрыт');ui.obj();save();lock();});}
 // стелс-побег после диспута (концепт: «диспут + стелс-побег»)
 function startEscape(id,score){S.escape={id,score};
   if(id==='straight'){S.abil.lens=false;S.lensOn=false;}
   for(const G of S.guards){if(G.sleep)continue;
-    if(id==='postulate'&&!G.kassel){G.passive=true;G.state='return';G.alert=0;continue;}
+    if((id==='postulate'&&!G.kassel)||(G.kassel&&S.flags.kgive)){G.passive=true;G.state='return';G.alert=0;continue;}G.passive=false;
     G.alert=id==='straight'?0.3:0.5;G.state='search';G.goal=S.A.pos();G.timer=0;G.scan=null;}
-  S.graceT=4.5;ui.obj();scene(STORY.escape[id],()=>{save();toast('Сохранено. Бегите к Воротам');});}
+  S.graceT=4.5;ui.obj();scene(S.flags.kgive?STORY.escape[id].filter(l=>l[0]!=='kassel').map(l=>id==='postulate'&&l[0]==='nikolai'?['nikolai','Никто тебя не держит. Даже он. Иди к Вратам.']:l):STORY.escape[id],()=>{save();toast('Сохранено. Бегите к Воротам');});}
+function epiExtra(id,E){const o=[],c=campaign;
+  if(id==='straight'&&c.wrote89)o.push(E.wrote89);
+  if(id==='curved'&&(c.ch4cost||c.ch3choice==='strike'))o.push(E.cost);
+  if(c.ch4choice==='reconf'&&E.reconf)o.push(E.reconf);
+  if(c.ch3choice==='evac'&&E.evac)o.push(E.evac);
+  if(c.kasselSpared&&E.kassel)o.push(E.kassel);
+  if(Object.keys(c.records||{}).length>=6&&E.records)o.push(E.records);
+  return o;}
 function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const st=S.stats;
   campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;campaign.ending=id;campaign.endings={...(campaign.endings||{}),[id]:1};saveCampaign();
   const highChaos=campaign.alerts>8||campaign.bodies>3;
   screenShow(`<div class="crest">${emblemSVG()}<div class="ch">Эпилог · концовка</div><span class="fxl">${FONT.svg(E.t,{h:'54px'})}</span></div>
-  ${E.x.map(x=>`<p>${x}</p>`).join('')}${highChaos?`<p style="color:var(--muted)">${E.chaos}</p>`:''}
+  ${E.x.map(x=>`<p>${x}</p>`).join('')}${epiExtra(id,E).map(x=>`<p>${x}</p>`).join('')}${highChaos?`<p style="color:var(--muted)">${E.chaos}</p>`:''}
   <div class="q">${STORY.epilogueQuote}</div>
   <div class="stats"><span>Тревоги за кампанию</span><span>${campaign.alerts}</span><span>Усыплено стражей</span><span>${campaign.sleeps}</span><span>Леммы</span><span>${Object.keys(campaign.lemmas).length} / ${Object.keys(STORY.lemmas).length}</span><span>Доводы в диспуте</span><span>${score} / ${STORY.debate.length}</span><span>Открыто концовок</span><span>${Object.keys(campaign.endings).length} / 3</span></div>
   <p style="color:var(--muted);font-size:13px">«Пятый Постулат» — игра о геометрии Лобачевского. Все леммы и формулы в ней — настоящие.</p>
@@ -1574,7 +1627,7 @@ function openTable(kind,onWin){S.dlg=true;aiming=false;try{if(document.pointerLo
   tbl.innerHTML=`<canvas width="900" height="900"></canvas><div class="side"></div>`;tbl.classList.add('on');
   const cv=tbl.querySelector('canvas'),side=tbl.querySelector('.side');
   const close=won=>{tbl.classList.remove('on');tbl.innerHTML='';S.dlg=false;lock();if(won)onWin();};
-  ({gap:puzzleGap,circ:puzzleCirc,square:puzzleSquare,dial:puzzleDial})[kind](cv,side,close);}
+  ({gap:puzzleGap,circ:puzzleCirc,square:puzzleSquare,dial:puzzleDial,straightSq:puzzleStraight,breakEdge:puzzleBreak,compat:puzzleCompat})[kind](cv,side,close);}
 function boardBG(x,W){x.fillStyle='#0b1d36';x.fillRect(0,0,W,W);x.strokeStyle='rgba(140,190,255,.08)';x.lineWidth=1;
   for(let i=0;i<=W;i+=30){x.beginPath();x.moveTo(i,0);x.lineTo(i,W);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke();}}
 // П0.3: выпускной чертёж — квадрат по узлам сетки (евклидов город, всё сходится)
@@ -1616,6 +1669,75 @@ function puzzleDial(cv,side,close){const x=cv.getContext('2d'),W=900,V=[90,90,90
     else if(sum===360)stt.textContent='Не открывается. «Исправный четырёхугольник» — но комната №7 исправной не была.';
     else stt.textContent='Не открывается. Ручка не идёт.';});
   draw();}
+// 5.10 · Прямизна: тот же квадрат, что на выпускном экзамене
+function puzzleStraight(cv,side,close){puzzleSquare(cv,side,close);side.querySelector('.ch').textContent='Сердце Машин · узел Прямизны';
+  side.querySelector('h4').textContent='Выровнять все линии';side.querySelector('p').innerHTML='Машина примет только чертёж, в котором нечего исправить: квадрат по узлам сетки. Четыре прямых угла — и город снова будет ровным.';}
+// 5.10 · Кривизна: разорвать контуры Машины — вернуть ребру его 72°
+function puzzleBreak(cv,side,close){const x=cv.getContext('2d'),W=900,Cx=W/2,R=W*0.36;let A=[90,90,90,90],n=4,ok=false;
+  side.innerHTML=`<div class="ch">Сердце Машин · узел Кривизны</div><h4>Разорвать контуры</h4><p>Сечение вокруг одного ребра Цитадели. Машина держит четыре куба по 90° — силой. Нажмите на клин, чтобы разорвать контур и отпустить его угол. Потом закройте ребро столько кубами, сколько их здесь на самом деле.</p>
+  <p class="sum mono"></p><div class="row"><button class="btn main" data-k="+">+ куб</button><button class="btn" data-k="x">Отойти от стола</button></div><p class="st"></p>`;
+  const draw=()=>{boardBG(x,W);let a0=-90;for(let i=0;i<n;i++){const a=A[i]??72,s0=a0*Math.PI/180,s1=(a0+a)*Math.PI/180;
+      x.fillStyle=a===90?'rgba(232,184,102,.35)':'rgba(111,211,255,.28)';x.strokeStyle=a===90?'#e8b866':'#6fd3ff';x.lineWidth=4;
+      x.beginPath();x.moveTo(Cx,Cx);x.arc(Cx,Cx,R,s0,s1);x.closePath();x.fill();x.stroke();
+      const m=(s0+s1)/2;x.fillStyle='#ece5d6';x.font='600 34px IBM Plex Mono, monospace';x.textAlign='center';x.fillText(a+'°',Cx+Math.cos(m)*R*0.62,Cx+Math.sin(m)*R*0.62+12);
+      if(a===90){x.strokeStyle='rgba(255,255,255,.5)';x.setLineDash([10,8]);x.beginPath();x.arc(Cx,Cx,R+22,s0+0.05,s1-0.05);x.stroke();x.setLineDash([]);}a0+=a;}
+    const tot=A.slice(0,n).reduce((s,v)=>s+(v??72),0)+Math.max(0,n-A.length)*72;
+    if(tot<360){const s0=(a0)*Math.PI/180,s1=270*Math.PI/180;x.fillStyle='rgba(255,90,60,.18)';x.beginPath();x.moveTo(Cx,Cx);x.arc(Cx,Cx,R,s0,s1);x.closePath();x.fill();
+      x.fillStyle='#ff8a6a';x.font='600 30px IBM Plex Mono, monospace';const m=(s0+s1)/2;x.fillText('щель '+(360-tot)+'°',Cx+Math.cos(m)*R*0.6,Cx+Math.sin(m)*R*0.6);}
+    x.fillStyle='#fff';x.beginPath();x.arc(Cx,Cx,9,0,7);x.fill();
+    side.querySelector('.sum').textContent=Array.from({length:n},(_,i)=>(A[i]??72)+'°').join(' + ')+' = '+tot+'°';return tot;};
+  cv.addEventListener('pointerdown',e=>{if(ok)return;const r=cv.getBoundingClientRect(),X=(e.clientX-r.left)/r.width*W-Cx,Y=(e.clientY-r.top)/r.height*W-Cx;
+    if(Math.hypot(X,Y)>R+30)return;let ang=Math.atan2(Y,X)*180/Math.PI+90;if(ang<0)ang+=360;let a0=0;
+    for(let i=0;i<n;i++){const a=A[i]??72;if(ang<a0+a){if(A[i]===90){A[i]=72;AU.tone(220,0.25,'sawtooth',0.05);}break;}a0+=a;}draw();});
+  side.addEventListener('click',e=>{const k=e.target.closest('[data-k]')?.dataset.k;if(!k||ok)return;if(k==='x')return close(false);const stt=side.querySelector('.st');
+    if(A.some(v=>v===90)){stt.textContent='Машина держит контуры: пока углы 90°, ребро «закрыто» четырьмя кубами. Сначала разорвите контуры.';return;}
+    if(n>=5){stt.textContent='Шестой куб не помещается: 6 × 72° = 432°.';return;}
+    n++;AU.tone(330,0.2,'triangle',0.04);const tot=draw();
+    if(tot===360){ok=true;stt.innerHTML='<b style="color:#9fdc8a">Квинта распадается.</b> 5 × 72° = 360°: у ребра пять кубов, как и было до Машин.';AU.tone(55,1.4,'sawtooth',0.09);setTimeout(()=>close(true),2200);}});
+  draw();}
+// 5.10 · Пятый постулат: несколько совместимых геометрий — хорды, полюсы, орициклы, дефект, орисферы
+function puzzleCompat(cv,side,close){const x=cv.getContext('2d'),W=900,Cx=W/2,R=W*0.38;let st=0,ok=false;
+  const pt=a=>[Cx+R*Math.cos(a),Cx+R*Math.sin(a)];const a1=-2.4,a2=-0.5,Pa=pt(a1),Pb=pt(a2);
+  const pole=(()=>{const m=(a1+a2)/2,h=Math.cos((a2-a1)/2);return [Cx+R/h*Math.cos(m),Cx+R/h*Math.sin(m)];})();
+  const mid=[(Pa[0]+Pb[0])/2,(Pa[1]+Pb[1])/2];
+  const steps=[
+    {q:'Прямая через две точки абсолюта. В модели Кэли — Клейна прямая — это…',c:[{t:'хорда круга',ok:1,d:'chord'},{t:'дуга, перпендикулярная абсолюту',d:'arc'},{t:'ломаная через центр',d:'broken'}],why:'В модели Кэли — Клейна прямые изображаются хордами; дуги, ортогональные абсолюту, — это модель Пуанкаре.'},
+    {q:'Где лежит полюс этой хорды?',c:[{t:'в середине хорды',d:'pmid'},{t:'вне абсолюта, на пересечении касательных',ok:1,d:'pole'},{t:'на самом абсолюте',d:'pon'}],why:'Полюс прямой лежит вне абсолюта: в нём сходятся касательные к абсолюту в концах хорды. Все перпендикуляры к прямой проходят через полюс.'},
+    {q:'Какая кривая — орицикл, граница переходного квартала?',c:[{t:'касается абсолюта в одной точке',ok:1,d:'horo'},{t:'целиком внутри, не касаясь',d:'circ'},{t:'пересекает абсолют дважды',d:'equi'}],why:'Орицикл касается абсолюта в одной точке: это «окружность с центром на бесконечности».'},
+    {q:'Гиперболический квартал: треугольник с углами 50°, 60°, 40°. Его дефект (а значит, и площадь при k = 1)?',c:[{t:'0°',d:'tri'},{t:'30°, то есть π/6',ok:1,d:'tri'},{t:'150°',d:'tri'}],why:'Дефект = 180° − (50° + 60° + 40°) = 30°. Площадь треугольника равна дефекту: π/6.'},
+    {q:'Где поместить евклидов квартал — для тех, кому нужен покой?',c:[{t:'на сфере',d:'regions'},{t:'на эквидистантной поверхности',d:'regions'},{t:'на орисфере',ok:1,d:'regions'}],why:'Внутренняя геометрия орисферы — евклидова (Ф. Л. Вахтер, 1816; Н. И. Лобачевский). Покой не нужно отнимать у кривизны: он в ней уже есть.'}];
+  side.innerHTML=`<div class="ch">Сердце Машин · пустой стол</div><h4>Начертить совместимые геометрии</h4><p>Не одну геометрию, а несколько — так, чтобы ни одна не лгала. Каждый шаг — построение в круге Кэли — Клейна.</p><p class="stg mono"></p><p class="q2"></p><div class="opts" style="display:flex;flex-direction:column;gap:6px"></div><p class="st"></p><div class="row"><button class="btn" data-k="x">Отойти от стола</button></div>`;
+  const done=new Set();
+  function draw(hl){boardBG(x,W);x.strokeStyle='#e8b866';x.lineWidth=4;x.beginPath();x.arc(Cx,Cx,R,0,7);x.stroke();
+    const show=d=>done.has(d)||hl===d;
+    x.fillStyle='#ece5d6';[Pa,Pb].forEach(q=>{x.beginPath();x.arc(...q,9,0,7);x.fill();});
+    x.lineWidth=5;
+    if(show('chord')){x.strokeStyle='#6fd3ff';x.beginPath();x.moveTo(...Pa);x.lineTo(...Pb);x.stroke();}
+    if(hl==='arc'){x.strokeStyle='#ff8a6a';const d=Math.hypot(pole[0]-Cx,pole[1]-Cx),r=Math.sqrt(d*d-R*R);x.beginPath();x.arc(...pole,r,0,7);x.stroke();}
+    if(hl==='broken'){x.strokeStyle='#ff8a6a';x.beginPath();x.moveTo(...Pa);x.lineTo(Cx,Cx);x.lineTo(...Pb);x.stroke();}
+    if(show('pole')||hl==='pmid'||hl==='pon'){const q=hl==='pmid'?mid:hl==='pon'?pt((a1+a2)/2):pole;x.fillStyle=hl&&hl!=='pole'?'#ff8a6a':'#d9ccff';x.beginPath();x.arc(...q,12,0,7);x.fill();
+      if(show('pole')){x.strokeStyle='rgba(217,204,255,.6)';x.lineWidth=2;x.beginPath();x.moveTo(...Pa);x.lineTo(...pole);x.lineTo(...Pb);x.stroke();
+        x.setLineDash([8,8]);for(const s of [0.3,0.55,0.8]){const q2=[Pa[0]+(Pb[0]-Pa[0])*s,Pa[1]+(Pb[1]-Pa[1])*s];x.beginPath();x.moveTo(...pole);x.lineTo(Cx+(q2[0]-pole[0])*3+(pole[0]-Cx)*0,0+q2[1]+(q2[1]-pole[1])*2);x.stroke();}x.setLineDash([]);}}
+    const ha=1.9,hT=pt(ha);
+    if(show('horo')){x.strokeStyle='#9fdc8a';x.lineWidth=4;x.beginPath();x.ellipse(Cx+(hT[0]-Cx)*0.72,Cx+(hT[1]-Cx)*0.72,R*0.28,R*0.21,ha,0,7);x.stroke();}
+    if(hl==='circ'){x.strokeStyle='#ff8a6a';x.beginPath();x.arc(Cx+(hT[0]-Cx)*0.5,Cx+(hT[1]-Cx)*0.5,R*0.2,0,7);x.stroke();}
+    if(hl==='equi'){x.strokeStyle='#ff8a6a';x.beginPath();x.arc(...pt(ha),R*0.35,0,7);x.stroke();}
+    if(show('tri')){const T=[[Cx-60,Cx+40],[Cx+120,Cx+70],[Cx+20,Cx-110]];x.strokeStyle='#d6a35a';x.fillStyle='rgba(214,163,90,.15)';x.lineWidth=4;x.beginPath();T.forEach((q,k)=>k?x.lineTo(...q):x.moveTo(...q));x.closePath();x.fill();x.stroke();
+      x.fillStyle='#ece5d6';x.font='600 26px IBM Plex Mono, monospace';x.textAlign='center';x.fillText('δ = 30°',Cx+28,Cx+10);}
+    if(done.has('regions')){x.save();x.beginPath();x.arc(Cx,Cx,R,0,7);x.clip();
+      x.fillStyle='rgba(111,211,255,.10)';x.beginPath();x.moveTo(...Pa);x.lineTo(...Pb);x.arc(Cx,Cx,R,a2,a1,true);x.fill();
+      x.fillStyle='rgba(159,220,138,.16)';x.beginPath();x.ellipse(Cx+(hT[0]-Cx)*0.72,Cx+(hT[1]-Cx)*0.72,R*0.28,R*0.21,ha,0,7);x.fill();x.restore();
+      x.fillStyle='#ece5d6';x.font='500 24px Old Standard TT, serif';x.textAlign='center';
+      x.fillText('гиперболический район',Cx+(Pa[0]+Pb[0]-2*Cx)*0.9,Cx+(Pa[1]+Pb[1]-2*Cx)*0.95);x.fillText('евклидов квартал (орисфера)',Cx+(hT[0]-Cx)*0.72,Cx+(hT[1]-Cx)*0.72+70);x.fillText('переходная зона',Cx-40,Cx+160);}}
+  function ask(){const S0=steps[st];side.querySelector('.stg').textContent='Шаг '+(st+1)+' из '+steps.length;side.querySelector('.q2').innerHTML='<b>'+S0.q+'</b>';
+    side.querySelector('.opts').innerHTML=S0.c.map((c,i)=>`<button class="btn" data-o="${i}">${c.t}</button>`).join('');draw();}
+  side.addEventListener('pointerover',e=>{const b=e.target.closest('[data-o]');if(b&&!ok)draw(steps[st].c[+b.dataset.o].d);});
+  side.addEventListener('click',e=>{const k=e.target.closest('[data-k]')?.dataset.k;if(k==='x')return close(false);const b=e.target.closest('[data-o]');if(!b||ok)return;
+    const S0=steps[st],c=S0.c[+b.dataset.o],stt=side.querySelector('.st');
+    if(!c.ok){stt.textContent='Это построение лжёт. '+S0.why;AU.tone(110,0.3,'square',0.03);return;}
+    done.add(c.d);stt.innerHTML='<span style="color:#9fdc8a">Верно.</span> '+S0.why;AU.pick();st++;
+    if(st>=steps.length){ok=true;draw();side.querySelector('.opts').innerHTML='';side.querySelector('.q2').innerHTML='<b>Город становится лоскутным — и ни один лоскут не лжёт.</b>';setTimeout(()=>close(true),3200);}else ask();});
+  ask();}
 // «Щель»: сколько многогранников с данным двугранным углом закрывают ребро
 function puzzleGap(cv,side,close){const stages=[{n:'Прямые додекаэдры Тюрьмы {5,3,4}',a:90},{n:'Кубы Цитадели {4,3,5}',a:72}];let st=0,n=1,lockT=false;
   const x=cv.getContext('2d'),W=900,C=W/2,R=W*0.36;
