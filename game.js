@@ -122,6 +122,12 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float bx=abs(mod(q.x+0.065,0.13)-0.065), by=abs(mod(q.y+0.065,0.13)-0.065);
     float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.012,rr-0.40);
     m=2; return min(ring,bars); }
+  if(kind==20){ float base=sdBox(q-vec3(0,-0.03,0),vec3(0.05,0.035,0.045));
+    float roof=max(sdBox(q-vec3(0,0.03,0),vec3(0.06,0.035,0.055)),dot(vec3(abs(q.x),q.y,0.),normalize(vec3(1.,1.3,0.)))-0.045);
+    float win=sdBox(q-vec3(0,-0.03,0.046),vec3(0.012,0.014,0.002));
+    float d=min(base,roof); m=base<roof?14:16; if(win<d+0.001){d=min(d,win);m=15;} return d; }
+  if(kind==21){ vec3 r=q; r.xy=rot(uTime*2.)*r.xy; float core=sdSph(q,0.014), ring=sdTorZ(r,0.035,0.003), ring2=sdTorZ(r.yzx,0.028,0.0025);
+    m=13; return min(core,min(ring,ring2)); }
   if(kind==19){ vec3 r=q-vec3(0,0.02,0); r.yz=rot(0.55)*r.yz; float tube=sdCaps(r,vec3(0,-0.04,0),vec3(0,0.06,0),0.011);
     float rings=min(sdTorZ(r.xzy-vec3(0,0,0.03),0.013,0.003),sdTorZ(r.xzy-vec3(0,0,-0.02),0.013,0.003));
     float lens=sdSph(r-vec3(0,0.062,0),0.009), stand=sdCaps(q,vec3(0,0.0,0),vec3(0,-0.09,0),0.004);
@@ -158,7 +164,7 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
   else if(mm==11){ float sw=fbm(vec3(q.xy*28.+vec2(sin(uTime*0.3),cos(uTime*0.27)),uTime*0.25));
     emis=mix(vec3(0.30,0.55,1.0),vec3(0.95,0.97,1.0),smoothstep(0.35,0.75,sw))*(0.55+0.85*par)*(0.55+0.45*smoothstep(0.122,0.03,length(q.xy))); base=vec3(0.02); }
   else if(mm==12){ base=vec3(1.); emis=vec3(1.0,0.92,0.75)*(2.2+0.8*sin(uTime*8.)); }
-  else if(mm==13){ base=vec3(0.1); emis=(kind==13? vec3(0.7,0.35,1.0) : vec3(0.35,0.8,1.0))*(1.6+0.8*sin(uTime*3.))*(1.-0.85*par); }
+  else if(mm==13){ base=vec3(0.1); emis=(kind==13? vec3(0.7,0.35,1.0) : kind==21? vec3(0.55,1.0,0.7)*1.6 : vec3(0.35,0.8,1.0))*(1.6+0.8*sin(uTime*3.))*(1.-0.85*par); }
   else if(mm==16){ base=vec3(0.22,0.12,0.06)*(0.75+0.5*fbm(q*160.)); rough=0.5; }
   else if(mm==18){ base=vec3(0.10,0.22,0.42); rough=0.9; float gl=max(step(fract(q.x*90.),0.08),step(fract(q.z*90.),0.08)); emis=vec3(0.45,0.7,1.0)*(0.12+0.25*gl)*(1.+2.*par); }
   else if(mm==14){ base=vec3(0.55,0.53,0.50)*(0.8+0.3*fbm(q*120.)); rough=0.8; }
@@ -640,7 +646,7 @@ const AU={ctx:null,on:true,drone:null,
 
 // ═══════════════ адаптеры геометрий ═══════════════
 const LN2=Math.LN2;
-const BOUND={19:0.1,18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
+const BOUND={21:0.06,20:0.1,19:0.1,18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
 // базовые операции в пространстве Лобачевского
 const HYP={dist:hyperbolicDistance,dirTo,advance:(p,u,s)=>advancePose(p,u,s)};
 
@@ -1055,31 +1061,72 @@ const LEVELS={
       restore(s2,o){const f=o.flags||{};if(f.circDone)L.maxFloor=3;if(o.choice&&s2.guards.length<o.guards.length)s2.guards.push(new Guard({name:'Циркулятор Кассель',kassel:true,route:A.route([[0.2,0.25,1],[0.85,0.8,1]],1.6)},s2.guards.length));},
       abil:{blink:true,lens:true,decoy:false}};},
 
-  ch4:()=>{const A=makePlane();const P=(r,d)=>A.pointAt(r,d);
-    // Бернхард стоит там, где не сходится «квадрат»: четыре отрезка по 1,6 с поворотом направо на 90°
-    const N3=[0,0,1,0];let f=O.slice(),u=[1,0,0,0];
-    for(let k=0;k<4;k++){const nx=advancePose(f,u,1.6);f=nx.p;u=nx.u;
-      // поворот направо на 90° в касательной плоскости равнины (x3 = 0)
-      let w=perpAt(f,u,[-u[1],u[0],0,0]);w=tangent([w[0],w[1],0,w[3]],f);const e=md(w,u);w=tangent(w.map((x,i)=>x-e*u[i]),f);
-      if(det4([...u,...w,...N3,...f])>0)w=w.map(x=>-x);u=w;}
-    const miss=hyperbolicDistance(O,f);
-    const bern=atHeight(f,0.16),gate=advancePose(bern,dirTo(bern,atHeight(O,0.16)),-0.6).p;
-    const it=[{id:'st0',kind:15,pos:P(2.2,40),name:'Межевой камень'},{id:'st1',kind:15,pos:P(2.6,160),name:'Межевой камень'},{id:'st2',kind:15,pos:P(2.4,270),name:'Межевой камень'},
-      {id:'poincare',kind:2,pos:P(1.4,100,0.3),lemma:'poincare'},{id:'riemann',kind:2,pos:P(3.0,220,0.3),lemma:'riemann'},{id:'pentagon',kind:2,pos:P(1.8,330,0.3),lemma:'pentagon'},
+  ch4:()=>{const A=makePlane();const P=(r,d,h)=>A.pointAt(r,d,h);
+    const TV=mul(rotZ(45*Math.PI/180),boostX(1.6));                          // центр деревни
+    const V=(r,d,h)=>atHeight(apply(TV,polar(r,d)),h??0.16),VF=(r,d)=>apply(TV,polar(r,d));
+    // дома: каждый следующий круг больше прежнего (длина окружности растёт как sh r)
+    const houses=[];[[0,1],[0.32,5],[0.62,10],[0.9,16]].forEach(([r,n],k)=>{for(let i=0;i<n;i++)houses.push({id:'h'+k+'_'+i,kind:20,pos:V(r,i*360/n+k*13,0.045),inert:true});});
+    // квадрат Бернхарда: четыре стороны по 1,2 с поворотом направо на 90°
+    const N3=[0,0,1,0],S0=VF(0.42,200);let f=S0.slice(),u=dirTo(S0,VF(1.6,200));const posts=[];
+    for(let k=0;k<4;k++){const nx=advancePose(f,u,1.2);f=nx.p;u=nx.u;posts.push(f.slice());
+      let w=perpAt(f,u,[-u[1],u[0],0,0]);w=tangent([w[0],w[1],0,w[3]],f);const e=md(w,u);w=tangent(w.map((x,i)=>x-e*u[i]),f);if(det4([...u,...w,...N3,...f])>0)w=w.map(x=>-x);u=w;}
+    const miss=hyperbolicDistance(S0,posts[3]);
+    const EDGE=polar(4.2,300);
+    const it=[...houses,
+      {id:'bernhard',kind:8,vr:3,pos:atHeight(S0,0.16),name:'Бернхард',talk:true,keep:true,face:V(0,0)},
+      {id:'gausscard',kind:4,pos:V(0.2,250,0.25),doc:'gauss'},
+      {id:'vill1',kind:8,vr:3,pos:V(0.5,90),name:'Изгнанник',talk:true,keep:true},{id:'vill2',kind:8,vr:10,pos:V(0.55,320),name:'Изгнанница',talk:true,keep:true},
+      ...posts.map((q,k)=>({id:'post'+k,kind:15,pos:atHeight(q,0.11),name:'Веха '+(k+1),cond:S=>S.flags.task&&(k===0||S.got['post'+(k-1)])})),
+      {id:'poincare',kind:2,pos:P(1.4,100,0.3),lemma:'poincare'},{id:'riemann',kind:2,pos:P(3.0,220,0.3),lemma:'riemann'},{id:'pentagon',kind:2,pos:P(2.6,150,0.3),lemma:'pentagon'},
       {id:'sh0',kind:7,pos:P(1.2,200,0.3)},{id:'sh1',kind:7,pos:P(2.0,0,0.3)},{id:'r099',kind:4,pos:P(2.0,300,0.3),doc:'r099'},
-      {id:'bernhard',kind:8,vr:3,pos:bern,name:'Бернхард',talk:true,cond:S=>S.got.st0&&S.got.st1&&S.got.st2},
-      {id:'exit',kind:5,pos:gate,face:bern,exit:S=>S.got.bernhard,cond:S=>S.got.bernhard}];
-    const gd=[{name:'Циркулятор Кассель',route:A.route([[2.2,60],[3.0,100],[2.6,150],[2.0,115]],1.6),kassel:true},
-      {name:'Циркулятор Агафон',vr:8,route:A.route([[2.5,250],[2.8,300],[2.2,340]])},{name:'Циркулятор Мина',vr:8,route:A.route([[2.3,185],[2.9,215]],2)}];
+      ...[0,1,2].map(k=>({id:'wisp'+k,kind:21,pos:P(2.5,300+k*15,0.3),inert:true,cond:S=>!!S.flags.hunt})),
+      {id:'oricycla',kind:8,vr:2,pos:V(0.3,20),name:'Сестра Орицикла',talk:true,keep:true,cond:S=>!!S.flags.edgeDone},
+      {id:'machine',kind:9,pos:V(0.95,120,0.3),name:'Машина Прямизны',talk:true,keep:true,rad:0.42},
+      {id:'exit',kind:5,pos:V(1.15,250,0.2),face:V(0,0),cond:S=>!!S.flags.decided,exit:S=>!!S.flags.decided}];
+    const gd=[{name:'Циркулятор Агафон',vr:8,route:A.route([[2.5,250],[2.8,300],[2.2,340]])},{name:'Циркулятор Мина',vr:8,route:A.route([[2.3,185],[2.9,215]],2)}];
+    // орициклы-существа: точки орицикла ⟨X, ℓ⟩ = −c вокруг точки абсолюта ℓ
+    const horo=(th,c,t)=>{const X=[t*t/2,t,0,1+t*t/2],l=[1,0,0,1],Y=X.map((v,i)=>c*v+(1-c*c)/(2*c)*l[i]);return apply(rotZ(th),Y);};
+    const WISP=[{th:5.2,c:0.55},{th:5.4,c:0.7},{th:5.0,c:0.85}];
+    const spawnK=()=>{const K=new Guard({name:'Циркулятор Кассель',kassel:true,route:A.route([[2.0,60],[2.4,20]],1.5)},S.guards.length);K.state='search';K.goal=A.pos();K.alert=0.5;return K;};
+    const foot=()=>footOf(A.pos());
     return {A,items:it,guards:gd,
-      objectives:S=>{const n=['st0','st1','st2'].filter(k=>S.got[k]).length;return [{t:'Найти межевые камни Эллиптиков ('+n+'/3)',done:n===3},
-        {t:'Встретить Бернхарда',done:S.got.bernhard,locked:n<3},{t:'Войти в ворота Цитадели',locked:!S.got.bernhard}];},
-      onPick(id){if(id.startsWith('st')&&['st0','st1','st2'].every(k=>S.got[k]))say('stones');},
-      onTalk(id){if(id==='bernhard'){const L=CH().scene.slice();L.splice(1,0,['bernhard',`Четыре стороны по 1,6, четыре прямых поворота — и вы стоите в ${fmt(miss)} от места, где начали. На евклидовой плоскости было бы ровно ноль.`]);scene(L,()=>{toast('Ворота Цитадели открыты');ui.obj();});}},
-      marks:S=>{const m=[{p:atHeight(O,0.16),c:'#ece5d6',r:6}];for(const k of ['st0','st1','st2'])if(!S.got[k])m.push({p:S.items.find(i=>i.id===k).pos,c:'#e8b866'});
-        if(S.got.st0&&S.got.st1&&S.got.st2&&!S.got.bernhard)m.push({p:bern,c:'#6fd3ff',r:11});if(S.got.bernhard)m.push({p:gate,c:'#ffffff',r:11});return m;},
-      start:()=>showPlaque(CH().note),
-      abil:{blink:true,lens:true,decoy:true}};},
+      objectives:S=>{const n=[0,1,2,3].filter(k=>S.got['post'+k]).length,o=[{t:'Найти деревню изгнанников',done:!!S.flags.village}];
+        o.push({t:'Поговорить с Бернхардом',done:!!S.flags.task,locked:!S.flags.village});
+        o.push({t:'Пройти квадрат Бернхарда: вехи ('+n+'/4)',done:n===4,locked:!S.flags.task});
+        if(S.flags.hunt)o.push({t:'Уйти от Касселя: подняться выше h = 1 и идти к краю равнины',done:!!S.flags.edgeDone});
+        if(S.flags.edgeDone)o.push({t:'Сестра Орицикла у Машины',done:!!S.choice});
+        if(S.choice==='evac')o.push({t:'Вывести изгнанников ('+(S.flags.evac||0)+'/2)',done:(S.flags.evac||0)>=2});
+        if(S.choice==='reconf')o.push({t:'Перенастроить Машину Прямизны',done:!!S.flags.reconfDone});
+        if(S.choice)o.push({t:'Ворота к Цитадели',locked:!S.flags.decided});return o;},
+      marks:S=>{const m=[{p:atHeight(O,0.16),c:'#ece5d6',r:6}];if(!S.flags.village)m.push({p:V(0,0),c:'#e8b866',r:11});
+        for(let k=0;k<4;k++)if(S.flags.task&&!S.got['post'+k]&&(k===0||S.got['post'+(k-1)])){m.push({p:posts[k],c:'#6fd3ff',r:10});break;}
+        if(S.flags.task)m.push({p:S0,c:'#ffffff',r:5});if(S.flags.hunt&&!S.flags.edgeDone)m.push({p:EDGE,c:'#ff8a6a',r:10});
+        if(S.flags.decided)m.push({p:V(1.15,250),c:'#ffffff',r:11});return m;},
+      start(){},
+      tick(dt,p){const fp=foot();
+        if(!S.flags.village&&hyperbolicDistance(fp,VF(0,0))<0.7){S.flags.village=1;say('village');ui.obj();}
+        if(S.flags.hunt){WISP.forEach((w,k)=>{const t=Math.sin(S.time*0.15+k*2)*2.2;const q=horo(w.th,w.c,t);const it2=S.items.find(i=>i.id==='wisp'+k);it2.pos=atHeight(q,0.3);
+            if(hyperbolicDistance(fp,q)<0.22&&!S.flags['wt'+k]){S.flags['wt'+k]=1;say('wisp');const t2=t+0.8*Math.sign(Math.cos(S.time*0.15+k*2)||1),q2=horo(w.th,w.c,t2);
+              const c=S.c,fwd=dirTo(fp,q2),dd=hyperbolicDistance(fp,q2);const dl=apply(linv(mul(c.G,c.T)),fwd),phi=Math.atan2(dl[1],dl[0]);
+              c.T=mul(c.T,mul(mul(rotZ(phi),boostX(dd/Math.cosh(c.h))),rotZ(-phi)));c.T=gsPlane(c.T);foldPlane(c);}});
+          if(S.lensOn){const K=S.guards.find(g=>g.kassel);if(K&&Math.random()<dt*0.8){K.goal=A.pos();if(K.state==='patrol'||K.state==='return')K.state='search';}}
+          if(!S.flags.edgeDone&&S.c.h>=1&&hyperbolicDistance(fp,O)>3.7){S.flags.edgeDone=1;
+            scene(CH().lines.edge,()=>{const c=S.c;c.T=I4();c.G=I4();c.h=0.45;const d=apply(TV,polar(0.7,60));const r=Math.acosh(d[3]),ang=Math.atan2(d[1],d[0]);
+              c.T=mul(rotZ(ang),boostX(r));c.T=gsPlane(c.T);foldPlane(c);for(const G of S.guards){G.alert=0;G.state='return';G.scan=null;}ui.obj();save();});}}},
+      onPick(id){if(id==='post3'){say('square');toast('Квадрат не замкнулся: до начала '+fmt(miss)+' (на евклидовой плоскости — 0)');ui.obj();}else if(id.startsWith('post'))say('post');},
+      onTalk(id){
+        if(id==='bernhard'){if(!S.flags.task){S.flags.task=1;scene(CH().lines.master,()=>{showPlaque(CH().note);ui.obj();});return;}
+          if(S.got.post3&&!S.flags.hunt){S.flags.hunt=1;scene(CH().lines.master2,()=>{S.guards.push(spawnK());say('hunt');ui.obj();save();});return;}
+          toast(S.flags.hunt?'Бернхард: «Уходи. Он рядом».':'Бернхард: «Вехи ждут»');return;}
+        if(id==='vill1'||id==='vill2'){if(S.choice==='evac'&&!S.got[id]){S.got[id]=1;S.flags.evac=(S.flags.evac||0)+1;say(CH().lines['talk:evac']);if(S.flags.evac>=2)decide();ui.obj();}else say('talk:'+id);return;}
+        if(id==='oricycla'){if(S.choice)return;scene(CH().lines.oricycla,()=>{const C=CH().choice;choose('vera',C.q,C.a,k=>{S.choice=C.a[k].id;campaign.ch4choice=S.choice;saveCampaign();
+            if(S.choice==='strike'){AU.tone(55,1.4,'sawtooth',0.09);campaign.ch4cost=1;saveCampaign();toast('Машина замолкает. Часть домов рушится.');decide();}ui.obj();save();lock();});});return;}
+        if(id==='machine'){if(S.choice!=='reconf'||S.flags.reconfDone){toast('Машина Прямизны гудит чистым тоном');return;}const Q=CH().reconfQ;
+          choose('vera',Q.q,Q.a,k=>{if(Q.a[k].ok){S.flags.reconfDone=1;say('reconf');decide();}else toast('Машина дрогнула и не приняла настройку. Проверьте: дефект = 3π − сумма углов.');ui.obj();lock();});}},
+      onExit(){scene(CH().lines.decide,()=>completeChapter());},
+      restore(s2,o){if(o.flags&&o.flags.hunt&&s2.guards.length<o.guards.length)s2.guards.push(new Guard({name:'Циркулятор Кассель',kassel:true,route:A.route([[2.0,60],[2.4,20]],1.5)},s2.guards.length));},
+      abil:{blink:true,lens:true,decoy:true}};
+    function decide(){S.flags.decided=1;ui.obj();}},
 
   ch5:()=>{const L={poly:[4,5],pal:2,lamp:[1.0,0.86,0.66],fog:7,
       rooms:[['gate',null,null,'Ворота',0],['nave','gate',[0,0,1],'Неф',1],['cloi','nave',[1,0,0.3],'Клуатр',0],['scri','cloi',[1,0,-0.2],'Скрипторий',1],
@@ -1377,7 +1424,7 @@ function interactTarget(){const A=S.A,p=A.pos();
     if(d<0.45){const ang=Math.acos(clamp(md(G.dir,dirTo(G.pos,p)),-1,1));
       if(ang>G.fov/2*0.85||G.alert<0.35)return G.kassel?{type:'none',label:'Кассель не спит: маятник качается и во сне'}:{type:'guard',G,label:'Усыпить стража'};}}
   {let best=null,bd=1e9;for(const it of visibleItems()){if(it.kind===5||it.inert)continue;const dd=A.dist(p,it.pos),rr=it.kind===16&&it.puzzle?0.5:(it.rad||0.3);if(dd<rr&&dd/rr<bd){bd=dd/rr;best=it;}}const it=best;if(it)
-    return {type:'item',it,label:it.kind===19?'Посмотреть в трубу':it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?'Коснуться камня':'Взять: '+it.name};}
+    return {type:'item',it,label:it.kind===19?'Посмотреть в трубу':it.kind===4&&!it.name&&!(STORY.records||{})[it.doc]?'Прочесть: '+(((CH().docs||{})[it.doc]||{}).t||'запись'):it.kind===16&&it.puzzle?it.name:it.kind===13?'Обмерить '+it.name:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?(/^post/.test(it.id)?'Отметить веху '+(+it.id.slice(4)+1):'Коснуться камня'):'Взять: '+it.name};}
   if(A.lights){const r=S.room;if(A.lampNear(r,p))return {type:'lamp',r,label:S.lit[r]?'Погасить лампу':'Зажечь лампу'};}
   return null;}
 function interact(){const t=interactTarget();if(!t||t.type==='none')return;
@@ -1393,7 +1440,7 @@ function interact(){const t=interactTarget();if(!t||t.type==='none')return;
     else if(it.kind===3){S.abil.lens=true;ui.obj();say('pick:lens');LV.afterPickLens&&LV.afterPickLens();save();}
     else if(it.kind===4){const R=(STORY.records||{})[it.doc];const D=(CH().docs||{})[it.doc]||R;if(R){campaign.records={...(campaign.records||{}),[it.doc]:1};saveCampaign();}if(D)showPlaque(D);say('pick:'+it.id);save();}
     else if(it.kind===12){toast(it.name+': отвесно, 90°');}
-    else if(it.kind===15){toast('Межевой камень: знак Эллиптиков');}
+    else if(it.kind===15&&!/^post/.test(it.id)){toast('Межевой камень: знак Эллиптиков');}
     ui.obj();LV.onPick&&LV.onPick(it.id);}
   else if(t.type==='lamp'){S.lit[t.r]=!S.lit[t.r];AU.lamp();}}
 function showPlaque(L,by){$('mpl-hd').innerHTML=(by?PORTRAITS.svg(by,'portrait'):'')+`<div><h4>${L.t}</h4>${by?`<div class="by">${PORTRAITS.info(by).name} · ${PORTRAITS.info(by).sub}</div>`:''}</div>`;
@@ -1648,7 +1695,7 @@ function objects(){const out=[];
   return out;}
 function mapMarks(){return LV&&LV.marks?LV.marks(S):[];}
 const EXPO={prologue:0.5,ch1:1,ch2:0.62,ch3:0.55,ch4:0.62,ch5:0.7};
-function render(now){const SC=sceneBegin();S.A.render(SC,now,objects());if(typeof POST!=='undefined')POST.cfg.expo=EXPO[CH().id]??1;sceneEnd(SC,now);}
+function render(now){const SC=sceneBegin();let ob=objects();if(ob.length>16){const p=S.A.pos();ob=ob.map(o=>({o,d:S.A.dist(p,o.pos)})).sort((a,b)=>a.d-b.d).slice(0,16).map(x=>x.o);}S.A.render(SC,now,ob);if(typeof POST!=='undefined')POST.cfg.expo=EXPO[CH().id]??1;sceneEnd(SC,now);}
 const ui={obj(){const L=$('mlist');if(!L||!S)return;$('mchap').textContent=CH().n+' · '+CH().title;
     L.innerHTML=LV.objectives(S).map(o=>`<li class="${o.done?'done':o.locked?'locked':''}">${o.t}</li>`).join('');
     $('ab-blink').style.display=S.abil.blink?'':'none';$('ab-lens').classList.toggle('off',!S.abil.lens);$('ab-decoy').classList.toggle('off',!S.abil.decoy);}};
@@ -1671,6 +1718,7 @@ function hud(){
       const ar=Math.asin(clamp(Math.sinh(0.13)/Math.sinh(Math.max(d,0.15)),0,1));
       e.style.display='block';e.style.left=(W/2+(x/z)/tf*H/2)+'px';e.style.top=(H/2-(y/z)/tf*H/2-Math.tan(ar)/tf*H/2-8)+'px';
       e.className='gi'+(G.state==='chase'?' chase':'')+(G.kassel?' k':'');e.firstChild.style.height=(G.state==='chase'?100:G.alert*100).toFixed(0)+'%';});}
+  if(S.A.kind==='plane'&&!S.over){const P=2*Math.atan(Math.exp(-S.c.h));$('mroom').textContent='h = '+fmt(S.c.h)+' · Π(h) = '+fmt(P*180/Math.PI,1)+'°';}
   lectHUD();drawKlein();
   if(mapOn)drawMap();
 }
