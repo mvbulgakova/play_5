@@ -121,6 +121,8 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float bx=abs(mod(q.x+0.065,0.13)-0.065), by=abs(mod(q.y+0.065,0.13)-0.065);
     float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.012,rr-0.40);
     m=2; return min(ring,bars); }
+  if(kind==18){ q.xz=rot(uTime*0.7)*q.xz; float l1=sdCaps(q,vec3(0,0.04,0),vec3(-0.022,-0.05,0),0.004), l2=sdCaps(q,vec3(0,0.04,0),vec3(0.022,-0.05,0.004),0.004);
+    float hg=sdSph(q-vec3(0,0.046,0),0.009), arc=max(sdTorZ(q-vec3(0,0.04,0),0.05,0.0025),q.y-0.0); m=2; return min(min(l1,l2),min(hg,arc)); }
   if(kind==17){ // чертёжный стол: наклонная доска с синькой, лампа на латунной стойке
     vec3 b=q-vec3(0,0.03,0); b.yz=rot(-0.45)*b.yz;
     float board=sdBox(b,vec3(0.065,0.003,0.045)), top=sdBox(q-vec3(0,0.012,0),vec3(0.07,0.004,0.05));
@@ -176,7 +178,7 @@ void traceObjects(vec4 p0, vec4 v0){
     if(u2<=1.) continue;
     float t0=u1>1.? log(u1) : 0., t1=log(u2);
     int kind=okind(j); float sl=osl(j); int vr=ovar(j); gPar=uOK[j].z;
-    if(kind==1){ if(sl<.5) gTG=min(gTG,t0); } else if(kind!=16) gTI=min(gTI,t0);
+    if(kind==1){ if(sl<.5) gTG=min(gTG,t0); } else if(kind!=16&&kind!=10) gTI=min(gTI,t0);
     if(t0>=gTO) continue;
     float tt=t0;
     for(int s=0;s<56;s++){
@@ -229,7 +231,7 @@ const FS_RM=HEAD+`
 uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV; uniform float uBall; uniform float uCamPar;
 uniform vec4 uF[3]; uniform vec4 uA[4];
 uniform vec4 uK[NK]; uniform float uLit[NK]; uniform vec4 uRC[NK]; uniform int uNK;
-uniform int uPal; uniform vec3 uLampC;
+uniform int uPal; uniform vec3 uLampC; uniform float uStraight;
 const vec3 FOG=vec3(0.010,0.013,0.030);
 vec4 gA[4]; bool gW[3];
 int roomKey(vec4 k){
@@ -356,6 +358,8 @@ void main(){
       else if(id==2){ base=vec3(0.78,0.80,0.84); rough=0.16+0.2*fbm(p.xyz*25.); }
       else wallMat(p,room,base,metal,rough);
       sc=brdf(base,metal,rough,n,v,L,p)*uLampC*att*mix(0.5,1.,ao)+ambEnv(n,v,L,uLampC,att,base,metal,rough,ao);
+      // «выпрямление»: рёбра раскаляются белым, стены выцветают
+      if(uStraight>0.){ if(id==1) sc+=vec3(1.0,0.96,0.88)*uStraight*1.6*(0.55+0.45*sin(uTime*9.+alongEdge(p)*40.)); else sc=mix(sc,vec3(0.8,0.82,0.86)*(0.3+0.7*lit),0.35*uStraight); }
     }
     col=mix(FOG,sc,exp(-t/uFog));
   } else if(ohit){
@@ -631,7 +635,7 @@ const AU={ctx:null,on:true,drone:null,
 
 // ═══════════════ адаптеры геометрий ═══════════════
 const LN2=Math.LN2;
-const BOUND={17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
+const BOUND={18:0.09,17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
 // базовые операции в пространстве Лобачевского
 const HYP={dist:hyperbolicDistance,dirTo,advance:(p,u,s)=>advancePose(p,u,s)};
 
@@ -713,7 +717,7 @@ function makeRooms(L){
     blink(s){boostLocal(S.c.M,2,s);gs(S.c.M);foldRooms(S.c,g);},
     up:p=>perpAt(p,[1,0,0,0]),
     lampNear(i,p){return i>=0&&hyperbolicDistance(p,R[i].c)<0.36;},
-    unseal(a,b){seals.delete([RI(a),RI(b)].sort().join('-'));buildNb();},isSealed:(a,b)=>sealed(RI(a),RI(b)),
+    unseal(a,b){seals.delete([RI(a),RI(b)].sort().join('-'));buildNb();},seal(a,b){seals.add([RI(a),RI(b)].sort().join('-'));buildNb();},isSealed:(a,b)=>sealed(RI(a),RI(b)),
     roomVerts:i=>VERTS.map(v=>apply(R[i].T,v)),EDGES,roomFaces:i=>FACES.map(F=>apply(R[i].T,F)),
     render(SC,now,objs){const P=PROG.rooms;if(!P)return;gl.useProgram(P.pr);const Lc=P.loc,c=S.c,Gi=linv(c.G);
       const f1=(n,v)=>{if(Lc[n]!=null)gl.uniform1f(Lc[n],v);},i1=(n,v)=>{if(Lc[n]!=null)gl.uniform1i(Lc[n],v);},f4=(n,v)=>{if(Lc[n]!=null)gl.uniform4fv(Lc[n],v);};
@@ -722,7 +726,7 @@ function makeRooms(L){
       f4('uM',g.M.flat());f4('uE1',g.E1);f4('uE2',g.E2);f4('uV',g.V);f4('uF',FACES.slice(0,3).flat());f4('uP1',g.P1);
       f4('uA',ANCH.map(a=>apply(Gi,a)).flat());f4('uK',R.map(q=>q.key).flat());f4('uRC',R.map(q=>apply(Gi,q.c)).flat());
       if(Lc.uLit!=null)gl.uniform1fv(Lc.uLit,S.lit.map(x=>x?1:0));i1('uNK',R.length);
-      i1('uPal',L.pal||0);if(Lc.uLampC!=null)gl.uniform3fv(Lc.uLampC,L.lamp||[1.0,0.68,0.36]);
+      f1('uStraight',S.straight||0);i1('uPal',L.pal||0);if(Lc.uLampC!=null)gl.uniform3fv(Lc.uLampC,L.lamp||[1.0,0.68,0.36]);
       setObjects(Lc,objs,x=>apply(Gi,x),now);gl.drawArrays(gl.TRIANGLES,0,3);},
   };
   return A;
@@ -953,23 +957,53 @@ const LEVELS={
   ch2:()=>{const L={poly:[5,4],pal:1,lamp:[0.78,0.92,0.86],fog:6,
       rooms:[['cell',null,null,'Галерея камер',1],['gal1','cell',[0,0,1],'Верхняя галерея',1],['gal2','gal1',[0.4,0,1],'Сторожевой переход',0],
         ['post','gal2',[1,0,0.6],'Пост Циркулятора',1],['ev','post',[1,0.3,0],'Кладовая улик',1],['ring','gal1',[-0.6,0.5,0.6],'Кольцевой коридор',0],
-        ['well','ring',[-1,0.4,0],'Колодец',0],['yard','post',[0.6,1,0.4],'Двор маятника',1],['lock','yard',[0,1,0.3],'Шлюз',1],['bath','cell',[0.5,-1,0.2],'Камера 281',0]],
+        ['well','ring',[-1,0.4,0],'Колодец',0],['yard','post',[0.6,1,0.4],'Двор маятника',1],['lock','yard',[0,1,0.3],'Шлюз',1],['bath','cell',[0.5,-1,0.2],'Камера Двенадцати Стен',0]],
       start:{room:'bath',toward:'cell'}};
-    const A=makeRooms(L);const P=(r,o)=>A.pointIn(r,o);
-    const lk=A.ROOMS[A.RI('lock')].c,yd=A.ROOMS[A.RI('yard')].c;
-    const it=[{id:'lens',kind:3,pos:P('ev',[0.10,-0.28,0.10]),name:'Линза Абсолюта',lock:'gap'},
+    const A=makeRooms(L);const P=(r,o)=>A.pointIn(r,o),R=id=>A.RI(id),C=id=>A.ROOMS[R(id)].c;
+    const lk=C('lock'),yd=C('yard');
+    // отражение в грани между Верхней галереей и Сторожевым переходом (симметрия соты)
+    const nf=C('gal1').map((v,i)=>v-C('gal2')[i]),nn=Math.sqrt(md(nf,nf)),RFm=refl(nf.map(v=>v/nn));
+    // перенос вдоль оси камеры: «выходишь в коридор — входишь в ту же камеру с другой стороны»
+    const Tb=A.ROOMS[R('bath')].T,lc=apply(linv(Tb),C('cell')),u=[lc[0],lc[1],lc[2]],ul=Math.hypot(...u),uu=u.map(v=>v/ul);
+    const boostDir=(w,sd)=>{const ch=Math.cosh(sd),sh=Math.sinh(sd),M=I4();for(let i=0;i<3;i++){for(let j=0;j<3;j++)M[j*4+i]=(i===j?1:0)+(ch-1)*w[i]*w[j];M[12+i]=sh*w[i];M[i*4+3]=sh*w[i];}M[15]=ch;return M;};
+    const LOOP=mul(mul(Tb,boostDir(uu,-(2*Math.acosh(Math.sqrt(1/(1-1/Math.sqrt(5))))-0.32))),linv(Tb));
+    const it=[{id:'compass',kind:18,pos:P('ev',[0.10,-0.26,0.10]),name:'Геодезический циркуль',lock:'gap'},
       {id:'desk_gap',kind:17,pos:P('ev',[-0.18,-0.22,-0.12]),puzzle:'gap',name:'замок-сота'},
+      {id:'plate',kind:4,pos:P('ring',[0.22,-0.22,-0.1]),doc:'plate'},
       {id:'r044',kind:4,pos:P('well',[-0.2,-0.2,0.2]),doc:'r044'},{id:'r260',kind:4,pos:P('post',[0.2,0.25,0.1]),doc:'r260'},
       {id:'bolyai',kind:2,pos:P('well',[0.2,0.25,-0.1]),lemma:'bolyai'},{id:'gauss',kind:2,pos:P('ring',[-0.2,-0.25,0.15]),lemma:'gauss'},{id:'sight',kind:2,pos:P('gal2',[0.15,0.3,0.1]),lemma:'sight'},
       {id:'sh0',kind:7,pos:P('bath',[0.25,0.2,0.1])},{id:'sh1',kind:7,pos:P('yard',[-0.2,-0.25,0.15])},
-      {id:'exit',kind:5,pos:advancePose(lk,dirTo(lk,yd),-0.42).p,face:yd,exit:S=>S.got.lens}];
+      {id:'exit',kind:5,pos:advancePose(lk,dirTo(lk,yd),-0.42).p,face:yd,exit:S=>!!S.race,cond:S=>!!S.race}];
     const gd=[{name:'Циркулятор Кассель',route:A.route(['yard','post','ev','post'],1.8),kassel:true},
-      {name:'Тюремщик Фавст',vr:6,route:A.route(['cell','gal1','ring','well'])},{name:'Тюремщик Лука',vr:6,route:A.route(['gal1','gal2','post','cell'])},
+      {name:'Тюремщик Фавст',vr:6,route:A.route(['cell','gal1','ring','well'])},{name:'Тюремщик Лука',vr:6,route:A.route(['gal2','gal1'],2.0)},
       {name:'Тюремщик Ерм',vr:6,route:A.route(['lock','yard'],2.5)}];
+    const RACE=80;
     return {A,items:it,guards:gd,
-      objectives:S=>[{t:'Отпереть шкаф с Линзой: чертёжный стол в Кладовой улик',done:!!S.flags.gapDone},{t:'Вернуть Линзу — Кладовая улик за постом Касселя',done:S.got.lens,locked:!S.flags.gapDone},{t:'Уйти через Шлюз',locked:!S.got.lens}],
+      objectives:S=>[{t:'Выбраться из камеры',done:!!S.flags.freed},
+        {t:'Отпереть шкаф в Кладовой улик: чертёжный стол',done:!!S.flags.gapDone,locked:!S.flags.freed},
+        {t:'Вернуть геодезический циркуль',done:!!S.got.compass,locked:!S.flags.gapDone},
+        {t:S.race?`Бежать к Шлюзу, пока Прямизна не сомкнулась — ${Math.max(0,Math.ceil(S.race.t))} с`:'Уйти через Шлюз',locked:!S.race}],
+      mirror:()=>({g:2,R:RFm}),
+      onRoom(r){
+        if(r===R('cell')&&!S.flags.freed){S.flags.loops=(S.flags.loops||0)+1;const Mabs=mul(LOOP,mul(S.c.G,S.c.M));S.c={M:Mabs,G:I4(),par:0,cross:0};gs(S.c.M);foldRooms(S.c,A.g);S.room=R('bath');
+          flash.style.transition='none';flash.style.opacity=0.6;requestAnimationFrame(()=>{flash.style.transition='opacity .5s';flash.style.opacity=0;});say(S.flags.loops===1?'loop1':'loop2');return;}
+        if(r===R('cell')&&S.flags.freed)say('edge');
+        if(r===R('gal1'))say('mirror');},
+      onLensOn(){},
+      tick(dt,p){
+        if(S.lensOn&&!S.flags.freed&&S.room===R('bath')){S.flags.freed=1;say('freed');ui.obj();}
+        if(S.race){S.race.t-=dt;S.straight=Math.min(1,S.straight+dt/20);
+          if(S.race.t<55&&!S.flags.s1){S.flags.s1=1;A.seal('gal2','post');say('sealed');}
+          if(S.race.t<30&&!S.flags.s2){S.flags.s2=1;A.seal('cell','gal1');say('sealed');}
+          if(Math.random()<dt*3)rotLocal(S.c.M,0,1,(Math.random()-0.5)*0.01*S.straight);
+          if(S.race.t%1<dt)ui.obj();
+          if(S.race.t<=0)failScreen(CH().raceFail);}},
+      onPick(id){if(id==='compass'){S.abil.blink=true;S.race={t:RACE};S.straight=0;ui.obj();say('race');
+        for(const G of S.guards){if(G.sleep)continue;if(G.kassel){G.state='search';G.goal=A.pos();G.alert=0.6;G.timer=0;}else G.alert=Math.max(G.alert,0.25);}save();}},
       onSolve(pz){if(pz==='gap')say('gapdone');},
-      abil:{blink:true,lens:false,decoy:false}};},
+      onExit(){scene(CH().exitScene,()=>completeChapter());},
+      restore(s2,o){const f=o.flags||{};if(f.s1)A.seal('gal2','post');if(f.s2)A.seal('cell','gal1');},
+      abil:{blink:false,lens:true,decoy:false}};},
 
   ch3:()=>{const L={start:[0.5,0.18,0],minFloor:-1,maxFloor:3,floorNames:{'-1':'Подвал','0':'Этаж 0 · основание','1':'Этаж 1','2':'Этаж 2','3':'Этаж 3 · обитель Криволинейных'}};
     const A=makeHouse(L);const P=(x,y,f,h)=>A.pointAt(x,y,f,h);
@@ -1244,9 +1278,9 @@ function fresh(chIdx){
   s.start=A.pos();
   return s;}
 function serialize(){return JSON.stringify({v:2,ch:S.ch,c:S.c,mana:S.mana,abil:S.abil,got:S.got,lit:S.lit,
-  clar:S.clar,guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags,escape:S.escape||null,stage:S.stage||0});}
+  clar:S.clar,guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags,escape:S.escape||null,stage:S.stage||0,race:S.race||null,straight:S.straight||0});}
 function deserialize(str){const o=JSON.parse(str);if(o.v!==2)return null;const s=fresh(o.ch);
-  Object.assign(s,{c:o.c,mana:o.mana,clar:o.clar??1,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags,escape:o.escape||null,stage:o.stage||0});
+  Object.assign(s,{c:o.c,mana:o.mana,clar:o.clar??1,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags,escape:o.escape||null,stage:o.stage||0,race:o.race||null,straight:o.straight||0});
   if(LV.restore)LV.restore(s,o);
   o.guards.forEach((gj,i)=>{const G=s.guards[i];if(!G)return;Object.assign(G,gj);G.scan=null;if(G.state==='chase'){G.state='search';G.timer=0;}G.alert=Math.min(G.alert,0.6);});
   s.room=-1;return s;}
@@ -1406,6 +1440,9 @@ function caught(G){if(S.over)return;
   S.over=true;AU.fail();
   screenShow(`<div class="ch">${CH().n} · провал</div><h2>Вас схватили</h2><p>${G.name} держит вас за плечо. ${G.kassel?'«Измерено», — говорит он и останавливает маятник.':'«Храни Прямизну», — шепчет он, будто извиняется.'}</p>
   <div class="q">${STORY.epilogueQuote}</div>
+  <div class="row">${hasSave()?'<button class="btn main" data-a="load">Загрузить сохранение</button>':''}<button class="btn${hasSave()?'':' main'}" data-a="restart">Начать главу заново</button><button class="btn" data-a="menu">В меню</button></div>`);}
+function failScreen(F){if(S.over)return;S.over=true;AU.fail();
+  screenShow(`<div class="ch">${CH().n} · провал</div><h2>${F.t}</h2><p>${F.x}</p>
   <div class="row">${hasSave()?'<button class="btn main" data-a="load">Загрузить сохранение</button>':''}<button class="btn${hasSave()?'':' main'}" data-a="restart">Начать главу заново</button><button class="btn" data-a="menu">В меню</button></div>`);}
 function completeChapter(){if(S.over)return;S.over=true;AU.win();
   const st=S.stats;campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;
@@ -1569,6 +1606,8 @@ function puzzleCirc(cv,side,close){
 function objects(){const out=[];
   for(const G of S.guards){const F=frameAt(G.pos,G.dir,S.A.kind==='plane'?[0,0,1,0]:null);const gr=S.A.lights?S.A.roomOf(G.pos):-1;
     out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,vr:G.kassel?1:G.vr,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
+  if(LV.mirror){const M=LV.mirror(),G=S.guards[M.g];if(G&&!G.sleep){const p2=apply(M.R,G.pos),d2=apply(M.R,G.dir);
+    out.push({pos:p2,F:frameAt(p2,d2),kind:S.lensOn?10:1,vr:S.lensOn?4:G.vr,par:0,lit:1,light:advancePose(p2,S.A.up(p2),0.55).p});}}
   if(S.decoy)out.push({pos:S.decoy.pos,F:S.decoy.F,kind:10,vr:4,lit:1,light:advancePose(S.decoy.pos,S.A.up(S.decoy.pos),0.5).p});
   for(const it of visibleItems()){const on=it.kind===5?(it.exit&&!it.exit(S)?0:1):it.kind===17?(S.flags[it.puzzle+'Done']?1:0):0;
     out.push({pos:it.pos,F:it.F,dirE:it.dirE,kind:it.kind,par:it.par??on,vr:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
@@ -1649,7 +1688,8 @@ function screenShow(html){const e=screen;e.innerHTML=`<div class="card framed">$
   e.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>act(b.dataset.a,b.dataset)));
   const m=e.querySelector('.btn.main');if(m)m.focus({preventScroll:true});e.querySelector('.card').scrollTop=0;}
 function screenHide(){screen.classList.remove('on');screen.innerHTML='';}
-function lock(){if(matchMedia('(pointer:coarse)').matches||!active)return;try{const r=canvas.requestPointerLock();if(r&&r.catch)r.catch(()=>{});}catch(_){}}
+let lockReqT=0;
+function lock(){if(matchMedia('(pointer:coarse)').matches||!active||document.pointerLockElement===canvas)return;lockReqT=performance.now();try{const r=canvas.requestPointerLock();if(r&&r.catch)r.catch(()=>{});}catch(_){}}
 function controlsHTML(ch){const c=CHS[ch];const fl=c.engine==='flat';
   return `<div class="ctrls"><b>W A S D</b><span>${c.engine==='plane'?'идти по равнине':c.engine==='house'?'идти по этажу':'идти (пространство без «низа»)'}; Пробел и C — вверх и вниз</span><b>Shift</b><span>бежать${fl?'':' — громко, стражи слышат'}</span>
   ${fl?'':`<b>ПКМ (держать)</b><span>геодезический рывок: прицел, отпустить — переместиться</span><b>V</b><span>Линза Абсолюта: стражи и их взгляд сквозь стены</span><b>G (держать)</b><span>зеркало σ — отражение, которое уводит стражей</span>`}
@@ -1696,7 +1736,7 @@ function pause(){if(!S||S.over||S.dlg)return;S.paused=true;aiming=false;
   <div class="row"><button class="btn main" data-a="resume">Продолжить</button><button class="btn" data-a="save">Сохранить <span class="mono">(K)</span></button>
   ${hasSave()?'<button class="btn" data-a="load">Загрузить <span class="mono">(L)</span></button>':''}<button class="btn" data-a="restart">Заново</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="records">Записи</button><button class="btn" data-a="sound">Звук: ${AU.on?'вкл':'выкл'}</button><button class="btn" data-a="menu">В меню</button></div>
   ${controlsHTML(S.ch)}`);}
-function start(i){S=fresh(i);LV.start&&LV.start();const go=()=>{begin();say('start');};if(CH().intro)intro(CH().intro,go);else go();}
+function start(i){S=fresh(i);LV.start&&LV.start();const go=()=>{begin();say('start');};const cs=()=>{if(CH().cutscene){screenHide();scene(CH().cutscene,go);}else go();};if(CH().intro)intro(CH().intro,cs);else cs();}
 // П0.1–П0.2: чёрный экран, луч чертит квадрат, один угол «плывёт» на градус; титульные карточки
 function intro(cards,cb){const e=document.createElement('div');e.id='mintro';
   e.innerHTML=`<svg viewBox="0 0 200 200"><path id="isq" d="M50 50H150V150H50Z" fill="none" stroke="#f3ead6" stroke-width="1.6" stroke-linecap="square"/></svg><div class="cap"></div><div class="skip">Пробел — пропустить</div>`;
@@ -1763,7 +1803,7 @@ function key(e,down){if(!active)return false;const k=e.code;
 canvas.addEventListener('contextmenu',e=>{if(active)e.preventDefault();});
 canvas.addEventListener('mousedown',e=>{if(active&&e.button===2&&S&&!S.paused&&!S.over&&S.abil.blink){aiming=true;aimMode='blink';}});
 addEventListener('mouseup',e=>{if(active&&e.button===2&&aiming&&aimMode==='blink'){aiming=false;if(!S.paused&&!S.over)doBlink();}});
-document.addEventListener('pointerlockchange',()=>{if(active&&!document.pointerLockElement&&S&&!S.paused&&!S.over&&!S.dlg)pause();});
+document.addEventListener('pointerlockchange',()=>{if(performance.now()-lockReqT<900)return;if(active&&!document.pointerLockElement&&S&&!S.paused&&!S.over&&!S.dlg&&!tbl.classList.contains('on'))pause();});
 const tb=$('mt-blink');tb.addEventListener('pointerdown',e=>{aiming=true;aimMode='blink';tb.setPointerCapture(e.pointerId);});
 tb.addEventListener('pointerup',()=>{if(aiming){aiming=false;doBlink();}});tb.addEventListener('pointercancel',()=>aiming=false);
 const td=$('mt-decoy');td.addEventListener('pointerdown',e=>{aiming=true;aimMode='decoy';td.setPointerCapture(e.pointerId);});
