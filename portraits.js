@@ -103,6 +103,7 @@ const P={
   kassel:{name:'Циркулятор Кассель',sub:'мерило дефекта',hair:'short',acc:'monocle',bust:'uniform'},
   bernhard:{name:'Бернхард',sub:'посланник Эллиптиков',hair:'short',beard:'full',bust:'coat'},
   ortt:{name:'Старший чертёжник Ортт',sub:'Чертёжная Собора',hair:'bald',side:1,beard:'mustache',bust:'collar'},
+  archivist:{name:'Архивариус',sub:'Архив Инквизиции',hair:'bald',beard:'long',bust:'clerical'},
   guard:{name:'Чертёжник',sub:'патруль Церкви',hair:'hood',bust:'hood'},
   // исторические лица
   h_euclid:{name:'Евклид',sub:'«Начала», ок. 300 до н. э.',cond:'Подлинных изображений Евклида не существует; силуэт условный.',hair:'classic',beard:'long',bust:'toga'},
