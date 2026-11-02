@@ -43,8 +43,8 @@ float hash12(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33)
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.,1.); }
 vec3 SC(vec2 uv){ return dec(texture(uScene,uv).rgb); }
 // Фильтр Кувахары по четырём квадрантам: берём квадрант с наименьшей дисперсией.
-vec3 kuwahara(vec2 uv){
-  vec2 d=uSceneTexel*uKuw;
+vec3 kuwahara(vec2 uv,float far){
+  vec2 d=uSceneTexel*uKuw*(0.85+1.5*far);
   vec3 m[4]; vec3 s[4];
   for(int k=0;k<4;k++){ m[k]=vec3(0.); s[k]=vec3(0.); }
   for(int j=0;j<=2;j++) for(int i=0;i<=2;i++){
@@ -62,7 +62,11 @@ vec3 kuwahara(vec2 uv){
 }
 void main(){
   vec2 uv=vUv;
-  vec3 col = uKuw>0.01 ? kuwahara(uv) : SC(uv);
+  float tC=decT(texture(uScene,uv).a), far=smoothstep(0.8,5.,tC);
+  vec3 col = uKuw>0.01 ? kuwahara(uv,far) : SC(uv);
+  // лёгкая хроматическая аберрация к краям кадра
+  vec2 qc=uv-.5; vec2 ca=qc*dot(qc,qc)*0.010*uGrade;
+  col.r=mix(col.r,SC(uv+ca).r,0.6); col.b=mix(col.b,SC(uv-ca).b,0.6);
   // контур по разрыву глубины (тушь)
   if(uInk>0.){
     vec2 d=uSceneTexel*1.25;
@@ -71,9 +75,16 @@ void main(){
     float ty=decT(texture(uScene,uv+vec2(0,d.y)).a)+decT(texture(uScene,uv-vec2(0,d.y)).a);
     float lap=abs(tx+ty-4.*t0)/(0.25+t0);
     float ink=smoothstep(0.10,0.35,lap)*exp(-t0*0.25);
+    // внутренние линии по перепаду яркости — «прорисовка» складок и силуэтов персонажей
+    float lx=dot(SC(uv+vec2(d.x,0))-SC(uv-vec2(d.x,0)),vec3(.3,.5,.2)), ly=dot(SC(uv+vec2(0,d.y))-SC(uv-vec2(0,d.y)),vec3(.3,.5,.2));
+    float lum=dot(col,vec3(.3,.5,.2)), ge=sqrt(lx*lx+ly*ly)/(0.06+lum);
+    ink=max(ink,smoothstep(0.9,2.2,ge)*0.45*(1.-far));
     col=mix(col,col*vec3(0.18,0.20,0.30),ink*uInk);
   }
   col+=texture(uBloom,uv).rgb*uBloomK;
+  // анаморфные полосы от ярких ламп (горизонтальный размытый блик, холодный оттенок)
+  vec3 stk=vec3(0.); for(int i=1;i<=6;i++){ float o2=float(i)*0.022, w=exp(-float(i)*0.45); stk+=(texture(uBloom,uv+vec2(o2,0.)).rgb+texture(uBloom,uv-vec2(o2,0.)).rgb)*w; }
+  col+=stk*vec3(0.55,0.75,1.25)*0.06*uBloomK*uGrade;
   col*=uExpo;
   // раздельное тонирование до тон-маппинга
   float l=dot(col,vec3(0.2126,0.7152,0.0722));
@@ -87,6 +98,9 @@ void main(){
   col=pow(col,vec3(1./2.2));
   col+=vec3(0.010,0.012,0.022)*uGrade;
   vec2 q=uv-.5; col*=1.-0.55*dot(q,q)*uGrade;
+  // фактура холста: тонкое переплетение нитей и пятна грунта
+  vec2 fc=gl_FragCoord.xy; float weave=0.5+0.25*(sin(fc.x*1.9)+sin(fc.y*1.9+sin(fc.x*0.13)));
+  col*=1.+(weave-0.5)*0.035*uGrade+(hash12(floor(fc/7.))-.5)*0.02*uGrade;
   col+=(hash12(gl_FragCoord.xy+fract(uTime*7.31)*391.)-.5)*0.035*uGrade;
   o=vec4(col,1.);
 }`;

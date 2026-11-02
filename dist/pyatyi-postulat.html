@@ -1097,8 +1097,8 @@ float hash12(vec2 p){ vec3 p3=fract(vec3(p.xyx)*.1031); p3+=dot(p3,p3.yzx+33.33)
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.,1.); }
 vec3 SC(vec2 uv){ return dec(texture(uScene,uv).rgb); }
 // Фильтр Кувахары по четырём квадрантам: берём квадрант с наименьшей дисперсией.
-vec3 kuwahara(vec2 uv){
-  vec2 d=uSceneTexel*uKuw;
+vec3 kuwahara(vec2 uv,float far){
+  vec2 d=uSceneTexel*uKuw*(0.85+1.5*far);
   vec3 m[4]; vec3 s[4];
   for(int k=0;k<4;k++){ m[k]=vec3(0.); s[k]=vec3(0.); }
   for(int j=0;j<=2;j++) for(int i=0;i<=2;i++){
@@ -1116,7 +1116,11 @@ vec3 kuwahara(vec2 uv){
 }
 void main(){
   vec2 uv=vUv;
-  vec3 col = uKuw>0.01 ? kuwahara(uv) : SC(uv);
+  float tC=decT(texture(uScene,uv).a), far=smoothstep(0.8,5.,tC);
+  vec3 col = uKuw>0.01 ? kuwahara(uv,far) : SC(uv);
+  // лёгкая хроматическая аберрация к краям кадра
+  vec2 qc=uv-.5; vec2 ca=qc*dot(qc,qc)*0.010*uGrade;
+  col.r=mix(col.r,SC(uv+ca).r,0.6); col.b=mix(col.b,SC(uv-ca).b,0.6);
   // контур по разрыву глубины (тушь)
   if(uInk>0.){
     vec2 d=uSceneTexel*1.25;
@@ -1125,9 +1129,16 @@ void main(){
     float ty=decT(texture(uScene,uv+vec2(0,d.y)).a)+decT(texture(uScene,uv-vec2(0,d.y)).a);
     float lap=abs(tx+ty-4.*t0)/(0.25+t0);
     float ink=smoothstep(0.10,0.35,lap)*exp(-t0*0.25);
+    // внутренние линии по перепаду яркости — «прорисовка» складок и силуэтов персонажей
+    float lx=dot(SC(uv+vec2(d.x,0))-SC(uv-vec2(d.x,0)),vec3(.3,.5,.2)), ly=dot(SC(uv+vec2(0,d.y))-SC(uv-vec2(0,d.y)),vec3(.3,.5,.2));
+    float lum=dot(col,vec3(.3,.5,.2)), ge=sqrt(lx*lx+ly*ly)/(0.06+lum);
+    ink=max(ink,smoothstep(0.9,2.2,ge)*0.45*(1.-far));
     col=mix(col,col*vec3(0.18,0.20,0.30),ink*uInk);
   }
   col+=texture(uBloom,uv).rgb*uBloomK;
+  // анаморфные полосы от ярких ламп (горизонтальный размытый блик, холодный оттенок)
+  vec3 stk=vec3(0.); for(int i=1;i<=6;i++){ float o2=float(i)*0.022, w=exp(-float(i)*0.45); stk+=(texture(uBloom,uv+vec2(o2,0.)).rgb+texture(uBloom,uv-vec2(o2,0.)).rgb)*w; }
+  col+=stk*vec3(0.55,0.75,1.25)*0.06*uBloomK*uGrade;
   col*=uExpo;
   // раздельное тонирование до тон-маппинга
   float l=dot(col,vec3(0.2126,0.7152,0.0722));
@@ -1141,6 +1152,9 @@ void main(){
   col=pow(col,vec3(1./2.2));
   col+=vec3(0.010,0.012,0.022)*uGrade;
   vec2 q=uv-.5; col*=1.-0.55*dot(q,q)*uGrade;
+  // фактура холста: тонкое переплетение нитей и пятна грунта
+  vec2 fc=gl_FragCoord.xy; float weave=0.5+0.25*(sin(fc.x*1.9)+sin(fc.y*1.9+sin(fc.x*0.13)));
+  col*=1.+(weave-0.5)*0.035*uGrade+(hash12(floor(fc/7.))-.5)*0.02*uGrade;
   col+=(hash12(gl_FragCoord.xy+fract(uTime*7.31)*391.)-.5)*0.035*uGrade;
   o=vec4(col,1.);
 }`;
@@ -1889,54 +1903,89 @@ float sdBox(vec3 p,vec3 b){ vec3 q=abs(p)-b; return length(max(q,0.))+min(max(q.
 float sdOct(vec3 p,float s){ p=abs(p); return (p.x+p.y+p.z-s)*0.57735027; }
 float sdRCone(vec3 p,float r1,float r2,float h){ vec2 q=vec2(length(p.xz),p.y); float b=(r1-r2)/h, a=sqrt(1.-b*b), k=dot(q,vec2(-b,a));
   if(k<0.) return length(q)-r1; if(k>a*h) return length(q-vec2(0.,h))-r2; return dot(q,vec2(a,b))-r1; }
-// Фигура в мантии: страж, Кассель, Сестра Орицикла, Бернхард, Евклид, отражение Веры
+// Фигура: стилизованный человек (пропорции Dishonored — крупные кисти и голова, длинное пальто).
+// vr: 0 чертёжник, 1 Кассель, 2 Орицикла, 3 Бернхард, 4 отражение Веры, 5 Евклид, 6 тюремщик,
+//     7 надзиратель с фонарём, 8 циркулятор, 9 страж Цитадели, 10 ребёнок. gWalk: 0 стоит, 1 идёт, 2 бежит.
+float gWalk=0.;
+float sdLimb(vec3 p,vec3 a,vec3 b,float ra,float rb){ vec3 pa=p-a, ba=b-a; float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.); return length(pa-ba*h)-mix(ra,rb,h); }
+vec3 swingX(vec3 v,float a){ float c=cos(a), s=sin(a); return vec3(v.x, c*v.y-s*v.z, s*v.y+c*v.z); }
+void put(inout float d,inout int m,float dd,int mm){ if(dd<d){d=dd;m=mm;} }
 float figureSDF(vec3 q,float sl,int vr,out int m){
-  float scl=vr==10?1.7:1.; q*=scl;
-  if(sl>.5){ q.xy=rot(1.1)*q.xy; q.y+=0.03; }
+  float scl=vr==10?1.7:1.; q*=scl; q.y-=0.012;
+  float wk=sl>.5?0.:gWalk, ph=uTime*(wk>1.5?10.5:6.2)+float(vr)*1.7, sw=wk>0.? sin(ph):0., amp=wk>1.5?0.75:0.45;
+  if(sl>.5){ q.xy=rot(1.25)*q.xy; q.y+=0.05; q.x+=0.03; }
   else{
-    q.y+=0.006*sin(uTime*1.7+float(vr));
-    q.xy=rot(0.05*sin(uTime*2.6+float(vr)*1.3))*q.xy;          // покачивание
-    q.yz=rot(-0.32*clamp(gPar,0.,1.))*q.yz;                     // подаётся вперёд, когда насторожен
+    q.y+=0.004*sin(uTime*1.7+float(vr))-0.004*abs(sw)*wk;      // дыхание и шаг
+    q.xy=rot(0.035*sin(uTime*1.3+float(vr)*1.3)+0.04*sw*wk*0.5)*q.xy;
+    q.yz=rot(-0.22*clamp(gPar,0.,1.)-0.12*step(1.5,wk))*q.yz;    // подаётся вперёд: насторожен или бежит
   }
-  float ang=atan(q.x,q.z);
-  float robe=sdRCone(q-vec3(0,-0.13,0),0.008,0.048,0.155);
-  robe+=0.0028*sin(ang*7.+q.y*40.+uTime*0.8)*smoothstep(0.02,-0.12,q.y);
-  float mant=sdEll(q-vec3(0,0.03,0),vec3(0.068,0.024,0.052));
-  float d=smin(robe,mant,0.02); m=1;
-  float hood=max(sdSph(q-vec3(0,0.082,-0.006),0.040),-(q.z-0.016));
-  hood=max(hood,-sdSph(q-vec3(0,0.08,0.002),0.034));
-  if(vr==3||vr==6||vr==10) hood=1.;                            // Бернхард и тюремщик — без капюшона
-  if(vr==7) hood=min(hood,sdRCone(q-vec3(0,0.10,-0.012),0.03,0.003,0.06)); // остроконечный капюшон
-  if(vr==5){ hood=min(sdRCone(q-vec3(0,0.09,-0.004),0.03,0.012,0.07),hood); } // митра Архипрелата
-  if(hood<d){d=hood;m=5;}
-  float head=sdSph(q-vec3(0,0.078,-0.002),0.031); if(head<d){d=head;m=5;}
-  float mask=sdEll(q-vec3(0,0.076,0.017),vec3(0.024,0.030,0.016)); if(mask<d){d=mask;m=3;}
-  if(vr<=1||vr>=6){
-    vec3 e=q-vec3(0,0.084,0.031);
-    float ring=sdTorZ(e,0.011,0.0032); if(ring<d){d=ring;m=2;}
-    float lens=sdEll(e,vec3(0.009,0.009,0.004)); if(lens<d){d=lens;m=4;}
-  }
-  if(vr==0||vr==1||vr==8){
-    float c1=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.075,-0.11,0.03),0.0036);
-    float c2=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.042,-0.11,0.045),0.0036);
-    float hg=sdSph(q-vec3(0.058,0.048,0.01),0.008);
-    float cmp=min(min(c1,c2),hg); if(cmp<d){d=cmp;m=2;}
-  }
-  if(vr==1){ // маятник Касселя
-    vec3 pq=q-vec3(-0.06,0.03,0.02); float sw=0.7*sin(uTime*2.4);
-    pq.xy=rot(sw)*pq.xy;
-    float str=sdCaps(pq,vec3(0),vec3(0,-0.11,0),0.0016), bob=sdOct(pq-vec3(0,-0.12,0),0.016);
-    if(min(str,bob)<d){d=min(str,bob);m=2;}
-  }
-  if(vr==3){ float bh=sdEll(q-vec3(0,0.105,-0.004),vec3(0.03,0.012,0.028)); if(bh<d){d=bh;m=5;} }
-  if(vr==6){ float helm=max(sdSph(q-vec3(0,0.085,-0.004),0.037),-(q.y-0.075)); float brim=sdTorZ((q-vec3(0,0.077,-0.004)).xzy,0.036,0.004);
-    float hm=min(helm,brim); if(hm<d){d=hm;m=2;}
-    float keys=sdTorZ((q-vec3(-0.05,-0.02,0.02)).zyx,0.014,0.0025); if(keys<d){d=keys;m=2;} }
-  if(vr==7){ float pole=sdCaps(q,vec3(0.06,0.05,0.03),vec3(0.07,0.13,0.05),0.0028); float lan=sdSph(q-vec3(0.07,0.145,0.05),0.014);
-    if(pole<d){d=pole;m=2;} if(lan<d){d=lan;m=15;} }
-  if(vr==8){ float brim=sdEll(q-vec3(0,0.11,0),vec3(0.07,0.004,0.07)); float crown=sdEll(q-vec3(0,0.12,0),vec3(0.03,0.015,0.03)); if(min(brim,crown)<d){d=min(brim,crown);m=5;} }
-  if(vr==9){ float halo=sdTorZ(q-vec3(0,0.085,-0.045),0.045,0.003); if(halo<d){d=halo;m=2;} }
-  float pa=sdEll(vec3(abs(q.x),q.y,q.z)-vec3(0.05,0.042,0.0),vec3(0.022,0.012,0.026)); if(pa<d){d=pa;m=2;}
+  bool robe= vr==2||vr==5||vr==10;                             // длинное одеяние до пола
+  bool bare= vr==2||vr==3||vr==4||vr==5||vr==10;               // открытое лицо
+  m=1; float d=1e9;
+  // ноги и сапоги
+  for(int i=0;i<2;i++){ float sd=i==0?1.:-1.; float a=sd*sw*amp, a2=a-0.55*amp*max(0.,-sd*cos(ph))*step(.5,wk);
+    vec3 H=vec3(sd*0.016,-0.022,0.), K=H+swingX(vec3(0,-0.056,0),-a), A=K+swingX(vec3(0,-0.052,0),-a2);
+    put(d,m,sdLimb(q,H,K,0.0125,0.0095),21); put(d,m,sdLimb(q,K,A,0.0098,0.0082),20);
+    vec3 fq=q-A-vec3(0,-0.006,0.006); fq=swingX(fq,a2*0.6); put(d,m,sdEll(fq,vec3(0.0085,0.0065,0.0165)),20); }
+  // торс: грудь, живот, ремень
+  float tor=smin(sdEll(q-vec3(0,0.034,0.002),vec3(0.041,0.034,0.027)),sdEll(q-vec3(0,0.0,0),vec3(0.032,0.03,0.024)),0.012);
+  put(d,m,tor,1);
+  put(d,m,sdTorZ((q-vec3(0,-0.004,0)).xzy,0.031,0.004),20);
+  put(d,m,sdBox(q-vec3(0,-0.004,0.033),vec3(0.006,0.005,0.002)),2);
+  // пальто: расширяется книзу, спереди разрез; у мантий — до пола
+  { float y0=0.002, y1=robe?-0.138:-0.108; float t=clamp((y0-q.y)/(y0-y1),0.,1.);
+    float rr=mix(0.034,robe?0.058:0.052,t)+0.005*abs(sw)*t*wk, ang=atan(q.x,q.z);
+    rr+=0.0024*sin(ang*6.+q.y*55.)*t;                                     // складки
+    float coat=max(length(vec2(q.x,q.z*1.18))-rr, max(q.y-y0, y1-q.y));
+    if(!robe) coat=max(coat,-(max(abs(q.x)-0.0015-0.016*t*t, 0.012-q.z)));  // разрез спереди
+    coat=max(coat,-max(length(vec2(q.x,q.z*1.18))-rr+0.004, y1+0.004-q.y)); // полое внутри (видны ноги)
+    put(d,m,coat*0.8,1); }
+  // плечевая пелерина и наплечники
+  put(d,m,smin(sdEll(q-vec3(0,0.054,-0.003),vec3(0.054,0.016,0.034)),sdEll(q-vec3(0,0.04,-0.006),vec3(0.05,0.026,0.031)),0.01),1);
+  float pa=sdEll(vec3(abs(q.x),q.y,q.z)-vec3(0.047,0.062,0.0),vec3(0.017,0.01,0.019)); put(d,m,pa,2);
+  // руки: плечо → локоть → запястье, крупные кисти; размах против ног
+  for(int i=0;i<2;i++){ float sd=i==0?1.:-1.; float b=-sd*sw*amp*0.75;
+    vec3 Sh=vec3(sd*0.047,0.056,0.), E=Sh+swingX(vec3(sd*0.008,-0.042,0.),-b), W=E+swingX(vec3(-sd*0.002,-0.04,0.),-b-0.25-0.35*step(1.5,wk));
+    if(vr==1&&i==1){ E=Sh+vec3(-0.008,-0.03,0.022); W=E+vec3(0.0,-0.004,0.034); }        // Кассель держит маятник перед собой
+    if(vr==7&&i==0){ E=Sh+vec3(0.01,-0.035,0.015); W=E+vec3(0.0,0.01,0.03); }           // надзиратель держит фонарь
+    put(d,m,sdLimb(q,Sh,E,0.0112,0.0092),1); put(d,m,sdLimb(q,E,W,0.0092,0.0078),1);
+    put(d,m,sdTorZ((q-W-vec3(0,0.006,0)).xzy,0.0085,0.0028),bare?1:20);                  // манжета
+    put(d,m,sdEll(q-W-vec3(0,-0.009,0.002),vec3(0.0062,0.0105,0.0082)),bare?19:20);
+    put(d,m,sdCaps(q,W+vec3(-sd*0.004,-0.002,0.006),W+vec3(-sd*0.006,-0.009,0.009),0.0026),bare?19:20); }   // большой палец   // кисть (перчатка)
+  // шея, стоячий воротник
+  put(d,m,sdCaps(q,vec3(0,0.06,0),vec3(0,0.08,0.002),0.0085),bare?19:21);
+  { float col=max(abs(length(vec2(q.x,q.z+0.002))-0.019+(q.y-0.064)*0.15)-0.0022, abs(q.y-0.072)-0.012); col=max(col,q.z-0.012-(q.y-0.06)*0.6); put(d,m,col,1); }
+  // голова: череп, удлинённая челюсть, нос, брови
+  vec3 hq=q-vec3(0,0.094,0.001);
+  float head=smin(sdSph(hq,0.0185),sdEll(hq-vec3(0,-0.011,0.006),vec3(0.0135,0.0155,0.0145)),0.008);
+  put(d,m,head,19);
+  if(bare){ put(d,m,sdCaps(hq,vec3(0,0.001,0.017),vec3(0,-0.006,0.023),0.0032),19);
+    put(d,m,sdCaps(hq,vec3(-0.009,0.0045,0.0145),vec3(0.009,0.0045,0.0145),0.0022),19);
+    float eye=min(sdSph(hq-vec3(0.0065,0.0005,0.0158),0.0026),sdSph(hq-vec3(-0.0065,0.0005,0.0158),0.0026)); put(d,m,eye,23); }
+  else{ // маска Чертёжников: фарфоровая, с латунным моноклем-линзой
+    put(d,m,sdEll(hq-vec3(0,-0.004,0.010),vec3(0.0165,0.021,0.0125)),3);
+    vec3 e=hq-vec3(0.0065,0.002,0.0215);
+    put(d,m,sdTorZ(e,0.0068,0.0022),2); put(d,m,sdEll(e,vec3(0.006,0.006,0.0028)),4);
+    put(d,m,sdEll(hq-vec3(-0.0065,0.002,0.0205),vec3(0.004,0.0022,0.002)),23); }
+  // капюшоны, шляпы, причёски
+  if(vr==0||vr==1||vr==2||vr==9){ float hood=max(sdSph(hq-vec3(0,0.003,-0.004),0.025),-(hq.z-0.013));
+    hood=max(hood,-sdSph(hq-vec3(0,0.001,0.003),0.0215)); hood=smin(hood,sdEll(q-vec3(0,0.066,-0.012),vec3(0.03,0.016,0.022)),0.01); put(d,m,hood,5); }
+  if(vr==4) put(d,m,smin(sdSph(hq-vec3(0,0.006,-0.004),0.0195),sdSph(hq-vec3(0,0.008,-0.022),0.009),0.006),22);  // Вера: волосы в узел
+  if(vr==10) put(d,m,sdSph(hq-vec3(0,0.006,-0.004),0.0198),22);
+  if(vr==3){ put(d,m,sdEll(hq-vec3(0,-0.017,0.011),vec3(0.0135,0.016,0.0095)),22);                               // борода Бернхарда
+    put(d,m,sdEll(hq-vec3(0,0.012,-0.002),vec3(0.021,0.007,0.021)),5); }                                            // плоская шапка
+  if(vr==5) put(d,m,sdRCone(hq-vec3(0,0.012,-0.002),0.02,0.008,0.038),5);                                          // митра
+  if(vr==7) put(d,m,max(sdRCone(hq-vec3(0,-0.002,-0.006),0.026,0.002,0.06),-sdSph(hq-vec3(0,0.0,0.004),0.021)),5); // остроконечный капюшон
+  if(vr==8){ put(d,m,sdEll(hq-vec3(0,0.012,0),vec3(0.046,0.0028,0.046)),5); put(d,m,sdEll(hq-vec3(0,0.02,0),vec3(0.0175,0.011,0.0175)),5); }
+  if(vr==6){ put(d,m,max(sdSph(hq-vec3(0,0.002,-0.002),0.0235),-(hq.y+0.002)),2); put(d,m,sdTorZ((hq-vec3(0,-0.002,-0.002)).xzy,0.024,0.003),2);
+    put(d,m,sdTorZ((q-vec3(-0.034,-0.016,0.016)).zyx,0.011,0.0022),2); }                                            // шлем и связка ключей
+  if(vr==9) put(d,m,sdTorZ(hq-vec3(0,0.004,-0.03),0.03,0.0024),2);                                               // нимб-обод
+  // атрибуты: циркуль на бедре, маятник, фонарь
+  if(vr==0||vr==8){ float c1=sdCaps(q,vec3(0.036,0.0,0.012),vec3(0.046,-0.07,0.022),0.0026), c2=sdCaps(q,vec3(0.036,0.0,0.012),vec3(0.028,-0.07,0.03),0.0026);
+    put(d,m,min(min(c1,c2),sdSph(q-vec3(0.036,0.002,0.012),0.0055)),2); }
+  if(vr==1){ vec3 pq=q-vec3(-0.008,0.024,0.058); pq.xy=rot(0.6*sin(uTime*2.4))*pq.xy;
+    put(d,m,min(sdCaps(pq,vec3(0),vec3(0,-0.07,0),0.0013),sdOct(pq-vec3(0,-0.078,0),0.013)),2); }
+  if(vr==7){ vec3 lq=q-vec3(0.05,0.04,0.045); put(d,m,sdCaps(lq,vec3(0,-0.005,0),vec3(0,0.012,0),0.0016),2); put(d,m,sdEll(lq-vec3(0,-0.018,0),vec3(0.011,0.014,0.011)),15); }
   return d/scl;
 }
 float objSDF(int kind,vec3 q,float sl,int vr,out int m){
@@ -1995,7 +2044,8 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
   base=vec3(0.5); metal=0.; rough=0.6; emis=vec3(0.);
   vec3 robe= vr==1? vec3(0.30,0.035,0.04) : vr==2? vec3(0.05,0.13,0.09) : vr==3? vec3(0.20,0.12,0.07) : vr==5? vec3(0.80,0.78,0.72)
 : vr==10? vec3(0.55,0.33,0.28) : vr==6? vec3(0.17,0.17,0.19) : vr==7? vec3(0.09,0.08,0.16) : vr==8? vec3(0.24,0.18,0.09) : vr==9? vec3(0.86,0.84,0.79) : vec3(0.07,0.08,0.13);
-  if(mm==1){ base=robe; rough=0.8; if(sl<.5&&abs(q.y-0.012)<0.005){ brass(X,base,rough); metal=1.; } }
+  if(mm==1){ base=robe*(0.78+0.4*fbm(vec3(q.x*110.,q.y*26.,q.z*110.))); rough=0.82;
+    if(abs(q.y-(vr==2||vr==5||vr==10?-0.133:-0.103))<0.004||(vr!=2&&vr!=5&&vr!=10&&abs(q.x)<0.007&&q.z>0.015&&q.y<0.0&&q.y>-0.1)){ brass(X,base,rough); metal=1.; } }
   else if(mm==5){ base=robe*0.65; rough=0.85; if(vr==5){ brass(X,base,rough); metal=1.; } }
   else if(mm==2){ brass(X,base,rough); metal=1.; if(vr==1){ base*=vec3(1.05,0.85,0.75); } }
   else if(mm==3){ base=vec3(0.86,0.83,0.77)*(0.9+0.15*fbm(q*300.)); rough=0.32; if(vr==3) base=vec3(0.62,0.45,0.34);
@@ -2014,6 +2064,11 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
   else if(mm==13){ base=vec3(0.1); emis=(kind==13? vec3(0.7,0.35,1.0) : kind==21? vec3(0.55,1.0,0.7)*1.6 : vec3(0.35,0.8,1.0))*(1.6+0.8*sin(uTime*3.))*(1.-0.85*par); }
   else if(mm==16){ base=vec3(0.22,0.12,0.06)*(0.75+0.5*fbm(q*160.)); rough=0.5; }
   else if(mm==18){ base=vec3(0.10,0.22,0.42); rough=0.9; float gl=max(step(fract(q.x*90.),0.08),step(fract(q.z*90.),0.08)); emis=vec3(0.45,0.7,1.0)*(0.12+0.25*gl)*(1.+2.*par); }
+  else if(mm==19){ base=vr==3? vec3(0.62,0.44,0.34) : vr==10? vec3(0.86,0.66,0.55) : vr==5? vec3(0.78,0.66,0.58) : vec3(0.80,0.60,0.50); rough=0.55; base*=0.92+0.12*fbm(q*420.); }
+  else if(mm==20){ base=vec3(0.13,0.075,0.045)*(0.8+0.4*fbm(q*260.)); rough=0.42; }
+  else if(mm==21){ base=robe*0.45+vec3(0.03); rough=0.85; }
+  else if(mm==22){ base=vr==3? vec3(0.62,0.6,0.56) : vr==4? vec3(0.16,0.09,0.05) : vec3(0.25,0.15,0.08); rough=0.7; base*=0.8+0.4*fbm(vec3(q.x*500.,q.y*120.,q.z*500.)); }
+  else if(mm==23){ base=vec3(0.02); rough=0.2; emis=vr==1? vec3(1.,0.15,0.05)*(0.6+2.*par) : vec3(0.); }
   else if(mm==14){ base=vec3(0.55,0.53,0.50)*(0.8+0.3*fbm(q*120.)); rough=0.8; }
   if(kind==10){ emis+=vec3(0.35,0.75,1.0)*(0.6+0.6*pow(1.-f,2.)); base*=0.3; }
 }`;
@@ -2026,7 +2081,8 @@ float gTO, gTG, gTI; int gIO;
 int okind(int j){ return int(uOK[j].x+.5); }
 float osl(int j){ return mod(uOK[j].w,2.); }
 float olit(int j){ return mod(floor(uOK[j].w*0.5+0.01),2.); }
-int ovar(int j){ return int(floor(uOK[j].w*0.25+0.01)); }
+int ovar(int j){ return int(mod(floor(uOK[j].w*0.25+0.01),32.)); }
+float owalk(int j){ return floor(uOK[j].w/128.+0.001); }
 void traceObjects(vec4 p0, vec4 v0){
   gTO=1e9; gTG=1e9; gTI=1e9; gIO=-1;
   for(int j=0;j<NO;j++){ if(j>=uNO) break;
@@ -2035,7 +2091,7 @@ void traceObjects(vec4 p0, vec4 v0){
     float sq=sqrt(disc), u1=(k-sq)/(A+B), u2=(k+sq)/(A+B);
     if(u2<=1.) continue;
     float t0=u1>1.? log(u1) : 0., t1=log(u2);
-    int kind=okind(j); float sl=osl(j); int vr=ovar(j); gPar=uOK[j].z;
+    int kind=okind(j); float sl=osl(j); int vr=ovar(j); gPar=uOK[j].z; gWalk=owalk(j);
     if(kind==1){ if(sl<.5) gTG=min(gTG,t0); } else if(kind!=16&&kind!=10) gTI=min(gTI,t0);
     if(t0>=gTO) continue;
     float tt=t0;
@@ -2048,7 +2104,7 @@ void traceObjects(vec4 p0, vec4 v0){
   }
 }
 vec3 shadeObject(vec4 p0, vec4 v0, vec3 lampC){
-  int j=gIO; int kind=okind(j); float sl=osl(j), litO=olit(j), par=uOK[j].z; int vr=ovar(j); gPar=par;
+  int j=gIO; int kind=okind(j); float sl=osl(j), litO=olit(j), par=uOK[j].z; int vr=ovar(j); gPar=par; gWalk=owalk(j);
   float tO=gTO; vec4 X=cosh(tO)*p0+sinh(tO)*v0, vX=sinh(tO)*p0+cosh(tO)*v0;
   vec3 q=vec3(md(X,uOR[j]),md(X,uOU[j]),md(X,uOD[j]));
   int mm; const vec2 h=vec2(1.,-1.)*0.0006;
@@ -2059,7 +2115,17 @@ vec3 shadeObject(vec4 p0, vec4 v0, vec3 lampC){
   float f=clamp(-md(n,vX),0.,1.);
   vec3 base, emis; float metal, rough;
   objMat(mm,kind,vr,par,sl,q,f,X,base,metal,rough,emis);
-  return brdf(base,metal,rough,n,vX,L,X)*lampC*att+ambEnv(n,vX,L,lampC,att,base,metal,rough,1.)+emis+vec3(0.25,0.35,0.6)*pow(1.-f,4.)*0.22;
+  vec3 dirL=brdf(base,metal,rough,n,vX,L,X)*lampC*att;
+  if(kind==1||kind==8||kind==10){
+    // ступенчатая светотень с мягкими переходами (как LUT-рампа в cel shading) + цветной контур-свет
+    float ndl=clamp(md(n,L),0.,1.); att=att/(1.+0.3*att); float ramp=0.16+0.44*smoothstep(0.03,0.14,ndl)+0.40*smoothstep(0.48,0.6,ndl);
+    vec3 toon=base*ramp*lampC*att*0.42; dirL=brdf(base,metal,rough,n,vX,L,X)*lampC*att;
+    dirL=mix(dirL,toon+dirL*0.25,0.7*(1.-metal));
+    vec3 rimC=mix(vec3(0.42,0.62,1.0),vec3(1.0,0.38,0.14),clamp(par,0.,1.));
+    float rim=smoothstep(0.55,0.95,1.-f)*(0.5+0.5*clamp(1.-ndl,0.,1.));
+    return dirL+ambEnv(n,vX,L,lampC,att,base,metal,rough,1.)*1.25+emis+rimC*rim*0.32+base*0.02;
+  }
+  return dirL+ambEnv(n,vX,L,lampC,att,base,metal,rough,1.)+emis+vec3(0.25,0.35,0.6)*pow(1.-f,4.)*0.22;
 }
 float sphereT(vec4 p0, vec4 v0, vec4 C, float R){
   float A=-md(p0,C), B=-md(v0,C), k=cosh(R);
@@ -2192,7 +2258,8 @@ void main(){
     if(d<3e-4*(1.+t)){hit=true;break;}
     float st=min(d,max(asinh(-md(p,uM[0])),0.)+1e-3);
     float sl=sinh(acosh(max(p.w,1.)));
-    acc+=thr*uLampC*litC*(0.011/(0.015+sl*sl))*min(st,0.25)*exp(-t/uFog);
+    float dust=0.65+0.7*vnoise(p.xyz*6.+vec3(0.,uTime*0.04,0.));               // пыль в луче света
+    acc+=thr*uLampC*litC*(0.013/(0.015+sl*sl))*dust*min(st,0.25)*exp(-t/uFog);
     adv(p,v,st); t+=st;
     if(t>14.||thr.g<0.02) break;
   }
@@ -2707,7 +2774,7 @@ function setObjects(Lc,objs,toL,now){
   const O_=[],R_=[],U_=[],D_=[],K_=[],C_=[];
   for(const o of objs.slice(0,16)){const F=o.F;
     O_.push(...toL(o.pos));R_.push(...toL(col(F,0)));U_.push(...toL(col(F,1)));D_.push(...toL(col(F,2)));
-    K_.push(o.kind,BOUND[o.kind]||0.08,o.par||0,(o.sl?1:0)+2*(o.lit?1:0)+4*(o.vr||0));C_.push(...toL(o.light||o.pos));}
+    K_.push(o.kind,BOUND[o.kind]||0.08,o.par||0,(o.sl?1:0)+2*(o.lit?1:0)+4*(o.vr||0)+128*(o.walk||0));C_.push(...toL(o.light||o.pos));}
   const f4=(n,v)=>{if(Lc[n]!=null&&v.length)gl.uniform4fv(Lc[n],v);};
   f4('uO',O_);f4('uOR',R_);f4('uOU',U_);f4('uOD',D_);f4('uOK',K_);f4('uOC',C_);
   if(Lc.uNO!=null)gl.uniform1i(Lc.uNO,O_.length/4);
@@ -3054,7 +3121,7 @@ class Guard{
   turn(des,dt,rate){const k=1-Math.exp(-(rate??3.2)*dt);this.dir=tangent(this.dir.map((x,i)=>x*(1-k)+des[i]*k),this.pos);}
   moveTo(tg,sp,dt){const d=hyperbolicDistance(this.pos,tg);if(d<0.05)return true;const des=dirTo(this.pos,tg);this.turn(des,dt);
     if(md(this.dir,des)<Math.cos(0.5))return false;const s=Math.min(d,sp*(this.kassel?1.15:1)*dt);const nx=advancePose(this.pos,this.dir,s);
-    this.pos=nx.p;this.dir=nx.u;if(S.A.constrain){this.pos=S.A.constrain(this.pos);this.dir=tangent(this.dir,this.pos);}return d-s<0.05;}
+    this.mvT=S.time;this.pos=nx.p;this.dir=nx.u;if(S.A.constrain){this.pos=S.A.constrain(this.pos);this.dir=tangent(this.dir,this.pos);}return d-s<0.05;}
   look(dt){if(!this.scan){this.scan={d0:this.dir.slice(),pp:perpAt(this.pos,this.dir,S.A.kind==='plane'?null:null),t:0};}
     const s=this.scan;s.t+=dt;const ph=1.0*Math.sin(s.t*1.5);
     let pp=s.pp;if(S.A.kind==='plane'){const up=tangent([0,0,1,0],this.pos);pp=perpAt(this.pos,up,s.d0);void pp;
@@ -3693,7 +3760,7 @@ function puzzleCirc(cv,side,close){
 // ═══════════════ рендер и HUD ═══════════════
 function objects(){const out=[];
   for(const G of S.guards){const F=frameAt(G.pos,G.dir,S.A.kind==='plane'?[0,0,1,0]:null);const gr=S.A.lights?S.A.roomOf(G.pos):-1;
-    out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,vr:G.kassel?1:G.vr,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
+    out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,walk:G.sleep?0:S.time-(G.mvT||-9)<0.2?(G.state==='chase'?2:1):0,vr:G.kassel?1:G.vr,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
   if(LV.mirror){const M=LV.mirror(),G=S.guards[M.g];if(G&&!G.sleep){const p2=apply(M.R,G.pos),d2=apply(M.R,G.dir);
     out.push({pos:p2,F:frameAt(p2,d2),kind:S.lensOn?10:1,vr:S.lensOn?4:G.vr,par:0,lit:1,light:advancePose(p2,S.A.up(p2),0.55).p});}}
   if(S.decoy)out.push({pos:S.decoy.pos,F:S.decoy.F,kind:10,vr:4,lit:1,light:advancePose(S.decoy.pos,S.A.up(S.decoy.pos),0.5).p});
