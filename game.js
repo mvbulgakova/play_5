@@ -342,8 +342,13 @@ void wallMat(vec4 p,int room,out vec3 base,out float metal,out float rough){
     if(r<0.16){ base=vec3(0.13); metal=1.; rough=0.5; if(r<0.06) { base=vec3(0.2,0.02,0.02); metal=0.; } }
     return; }
   if(uPal==2){ // Цитадель: белый мрамор с прожилками, золото
-    float vein=pow(abs(sin(p.x*40.+fbm(p.xyz*8.)*6.)),12.);
-    base=vec3(0.86,0.84,0.80)*(0.85+0.2*st)-vec3(0.25,0.22,0.18)*vein*0.6; rough=0.25;
+    float wv=fbm(p.xyz*8.), vein=pow(abs(sin(p.x*40.+wv*6.)),10.), vein2=pow(abs(sin(p.y*23.-p.z*17.+fbm(p.xyz*5.+7.)*7.)),18.);
+    base=vec3(0.70,0.67,0.62)*(0.82+0.3*st)*mix(vec3(1.03,1.0,0.95),vec3(0.95,0.98,1.04),fbm(p.xyz*2.5))
+        -vec3(0.30,0.27,0.22)*vein*0.7-vec3(0.20,0.16,0.10)*vein2*0.6; rough=0.22;
+    // инкрустация: пояс тёмно-зелёного мрамора и кайма по краю грани
+    float inl=max(1.-smoothstep(0.004,0.008,abs(r-0.34)-0.022),1.-smoothstep(0.004,0.008,abs(e-0.15)-0.018));
+    base=mix(base,vec3(0.08,0.17,0.13)*(0.7+0.6*fbm(p.xyz*14.))+vec3(0.25,0.3,0.25)*vein2*0.4,inl*step(0.16,r));
+    base=mix(base,base*0.55,1.-smoothstep(0.12,0.26,e));                          // тень в углах у рёбер
     if(e<0.118){ brass(p,base,rough); base*=vec3(1.05,1.0,0.8); metal=1.; rough*=0.6; }
     if(r<0.16){ brass(p,base,rough); metal=1.; rough*=0.5;
       if(r<0.128){ base=vec3(0.92,0.90,0.86); metal=0.; rough=0.2; float star=1.-smoothstep(0.003,0.006,min(a,b)); if(star>.5){ brass(p,base,rough); metal=1.; } } }
@@ -1941,7 +1946,7 @@ function objects(){const out=[];
     out.push({pos:it.pos,F:it.F,dirE:it.dirE,kind:it.kind,par:it.par??on,vr:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
   return out;}
 function mapMarks(){return LV&&LV.marks?LV.marks(S):[];}
-const EXPO={prologue:0.5,ch1:1,ch2:0.62,ch3:0.55,ch4:0.62,ch5:0.7};
+const EXPO={prologue:0.5,ch1:1,ch2:0.62,ch3:0.55,ch4:0.62,ch5:0.58};
 function render(now){const SC=sceneBegin();let ob=objects();if(ob.length>16){const p=S.A.pos();ob=ob.map(o=>({o,d:S.A.dist(p,o.pos)})).sort((a,b)=>a.d-b.d).slice(0,16).map(x=>x.o);}S.A.render(SC,now,ob);if(typeof POST!=='undefined')POST.cfg.expo=EXPO[CH().id]??1;sceneEnd(SC,now);}
 const ui={obj(){const L=$('mlist');if(!L||!S)return;$('mchap').textContent=CH().n+' · '+CH().title;
     L.innerHTML=LV.objectives(S).map(o=>`<li class="${o.done?'done':o.locked?'locked':''}">${o.t}</li>`).join('');
