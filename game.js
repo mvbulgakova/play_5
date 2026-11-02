@@ -1305,7 +1305,7 @@ function completeChapter(){if(S.over)return;S.over=true;AU.win();
   const rank=st.alerts===0&&st.sleeps===0?'Призрак: вас не видели, никто не усыплён':st.alerts===0?'Тень: ни одной тревоги':st.alerts<3?'Свидетели есть, но вы ушли':'Тревога гремит до самого Собора';
   const nx=CHS[S.ch+1];const ck=(STORY.checks||{})[CH().id];
   screenShow(`<div class="ch">${CH().n} · пройдена</div><h2>${CH().title}</h2><p>${CH().end}</p>
-  ${ck?`<div class="check"><div class="ch">Проверка</div><p><b>${ck.q}</b></p><div class="chk">${ck.a.map((t,i)=>`<button class="btn" data-a="check" data-i="${i}">${t}</button>`).join('')}</div><p class="ce" hidden></p></div>`:''}
+  ${ck?`<div class="quiz"><div class="ch">Проверка</div><p><b>${ck.q}</b></p><div class="chk">${ck.a.map((t,i)=>`<button class="btn" data-a="check" data-i="${i}">${t}</button>`).join('')}</div><p class="ce" hidden></p></div>`:''}
   ${S.guards.length?`<div class="rank">${rank}</div>`:''}
   <div class="stats"><span>Время</span><span>${tm}</span>${S.guards.length?`<span>Тревоги</span><span>${st.alerts}</span><span>Усыплено стражей</span><span>${st.sleeps}</span><span>Найдено спящих</span><span>${st.bodies}</span>`:''}
   <span>Леммы главы</span><span>${lg} / ${lem.length}</span><span>Леммы всего</span><span>${Object.keys(campaign.lemmas).length} / ${Object.keys(STORY.lemmas).length}</span></div>
