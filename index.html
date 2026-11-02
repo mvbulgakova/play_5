@@ -210,14 +210,21 @@ float map(vec4 p){
   float d=asinh(sqrt(a*a+b*b))-uTube; gId=1;
   if(uHasV>.5){ float dv=acosh(max(-md(p,uV),1.))-uBall; if(dv<d){d=dv;gId=2;} }
   float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
-  if(uEnemyR>0.){ float de=acosh(max(-md(p,uEnemy),1.))-uEnemyR; if(de<d){d=de;gId=4;} }
   return d;
 }` + NORMAL + `
+// Враг — один шар в пространстве (не в фундаментальной области): пересечение с лучом в замкнутой форме.
+float sphereT(vec4 p0, vec4 v0, vec4 C, float R){
+  float A=-md(p0,C), B=-md(v0,C), k=cosh(R);
+  if(A<=k) return 1e9; float disc=k*k-A*A+B*B; if(disc<=0.) return 1e9;
+  float u=(k-sqrt(disc))/(A+B); if(u<=1.) return 1e9; return log(u);
+}
 void main(){
   vec2 uv=(2.*gl_FragCoord.xy-uRes)/uRes.y;
   vec3 dr=normalize(vec3(uv*uTanFov,1.));
   vec4 p=uCam[3], v=uCam[0]*dr.x+uCam[1]*dr.y+uCam[2]*dr.z;
-  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; int cells=0; bool hit=false;
+  vec4 p0=p, v0=v;
+  float tE= uEnemyR>0. ? sphereT(p0,v0,uEnemy,uEnemyR) : 1e9;
+  vec3 thr=vec3(1.), acc=vec3(0.); float t=0., d=0.; int cells=0; bool hit=false, ehit=false;
   for(int i=0;i<160;i++){
     for(int it=0;it<16;it++){
       bool any=false;
@@ -234,18 +241,24 @@ void main(){
       if(!any) break;
     }
     d=map(p);
+    if(t+d>=tE){ehit=true;break;}
     if(d<3e-4*(1.+t)){hit=true;break;}
     adv(p,v,d); t+=d;
     if(t>15.||thr.g<0.02) break;
   }
   vec3 col=FOG;
-  if(hit){
+  if(ehit){
+    vec4 P=cosh(tE)*p0+sinh(tE)*v0, vP=sinh(tE)*p0+cosh(tE)*v0;
+    float facing=max(-md(tp(-uEnemy,P),vP),0.);
+    vec3 sc=mix(vec3(0.72,0.81,0.92), vec3(0.95,0.25,0.16), uEnemyAlert)*(0.55+0.85*facing);
+    col=mix(FOG,sc,exp(-tE/uFog));
+  }
+  else if(hit){
     int id=gId; vec4 n=calcN(p,d);
     bool odd=uParity>.5 && ((cells+int(uCamPar))%2==1);
     vec3 lamp=odd? vec3(0.45,0.78,1.0): vec3(1.0,0.72,0.40);
     vec3 sc;
-    if(id==4){ sc=mix(vec3(0.72,0.81,0.92), vec3(0.95,0.25,0.16), uEnemyAlert)*1.4; }
-    else if(id==3) sc=lamp*2.4;
+    if(id==3) sc=lamp*2.4;
     else{
       vec4 L=tp(vec4(0,0,0,1),p); float sr=sinh(acosh(max(p.w,1.)));
       float att=1.5/(0.22+sr*sr);
@@ -714,13 +727,14 @@ const keys=new Set();
 let look=[0,0], joy=[0,0], vbtn=0, moved=false;
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'&&e.target.type==='range')return;
+  if(window.MISSION&&MISSION.active&&MISSION.key(e,true))return;
   const k=e.code;
   if(/^Digit[1-6]$/.test(k)){setWorld(WORLDS[+k.slice(5)-1]);return;}
   if(k==='KeyR'){resetCam();return;}
   if(k==='KeyH'){togglePanel();return;}
   keys.add(k); if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
 });
-addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('keyup',e=>{keys.delete(e.code);if(window.MISSION&&MISSION.active)MISSION.key(e,false);});
 addEventListener('blur',()=>keys.clear());
 let dragging=false,last=[0,0];
 canvas.addEventListener('mousedown',e=>{dragging=true;last=[e.clientX,e.clientY];
@@ -795,8 +809,9 @@ function step(dt){
   }
   if(enemy&&world.type==='rooms'){
     const g=GEO[world.id];
-    enemy.update(dt,col(c.M,3),{obstacleMap:p=>roomsObstacleMap(p,g,{tube:0.04,ball:world.p===5?0.085:0.075,lamp:0.06}),time:performance.now()});
-    foldEnemy(enemy.pos,enemy.dir,g);
+    // враг живёт в абсолютных координатах; препятствия — через свёртку копии точки в фундаментальную область
+    const rad={tube:0.04,ball:world.p===5?0.085:0.075,lamp:0.06};
+    enemy.update(dt,normalizePoint(apply(c.G,col(c.M,3))),{obstacleMap:p=>{const q=p.slice(),w=[1,0,0,0];foldEnemy(q,w,g);return roomsObstacleMap(q,g,rad);},time:performance.now()});
   }
 }
 function gsFlat(M){const v=[0,1,2].map(i=>[M[i*4],M[i*4+1],M[i*4+2]]);
@@ -832,7 +847,8 @@ function render(){
   if(world.type==='rooms'){const g=GEO[world.id];
     U(P,'uM',g.M.flat());U(P,'uE1',g.E1);U(P,'uE2',g.E2);U(P,'uV',g.V);U(P,'uHasV',g.hasV?1:0);
     U(P,'uBall',world.p===5?0.085:0.075);U(P,'uTube',0.04);U(P,'uParity',world.r%2===0&&world.p===5?1:0);U(P,'uCamPar',c.par);
-    if(enemy){U(P,'uEnemy',enemy.pos);U(P,'uEnemyR',0.09);U(P,'uEnemyAlert',enemy.alert);}
+    if(enemy){const G=c.G,Gi=new Array(16),J=[1,1,1,-1];for(let a=0;a<4;a++)for(let r=0;r<4;r++)Gi[a*4+r]=J[r]*G[r*4+a]*J[a];
+      U(P,'uEnemy',apply(Gi,enemy.pos));U(P,'uEnemyR',0.09);U(P,'uEnemyAlert',enemy.alert);}
     else{U(P,'uEnemyR',0.);U(P,'uEnemyAlert',0.);}}
   else if(world.type==='house'){const cx=Math.floor(c.X/HS),cy=Math.floor(c.Y/HS),m=v=>((v%1024)+1024)%1024;
     U(P,'uS',HS);U(P,'uCell',[m(cx),m(cy)]);U(P,'uTube',0.022);}
@@ -856,12 +872,13 @@ function updateDanger(){
 }
 function frame(now){
   const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
-  step(dt);render();
-  updateDanger();
+  const mission=window.MISSION&&MISSION.active;
+  if(mission)MISSION.frame(dt,now);
+  else{step(dt);render();updateDanger();}
   frameAvg=frameAvg*0.92+dt*0.08;
   if(frameAvg>1/38&&scale>0.3){scale=Math.max(0.3,scale*0.94);frameAvg=1/50;}
   else if(frameAvg<1/57&&scale<1){scale=Math.min(1,scale*1.03);frameAvg=1/50;}
-  if(now-hudT>120){hudT=now;hud();}
+  if(!mission&&now-hudT>120){hudT=now;hud();}
   requestAnimationFrame(frame);
 }
 
@@ -918,4 +935,5 @@ if(location.hash){const h=location.hash.slice(1);if(WORLDS.some(w=>w.id===h))sta
 setWorld(WORLDS.find(w=>w.id===startId)||WORLDS[0]);
 requestAnimationFrame(frame);
 </script>
+<script src="mission.js"></script>
 </html>
