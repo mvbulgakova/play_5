@@ -1358,7 +1358,44 @@ const css=`
 #msub .portrait{animation:p5fade .6s ease both}
 #mind .gi.chase{animation:p5pulse .5s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){#mtitle .fx path,#mscreen .fx path{animation:none;stroke-dashoffset:0}#mscreen.on .card,#mdlg.on{animation:none}}
-@media (pointer:coarse){#mtouch{display:flex}#mpause{display:block}#mbar{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
+@media (pointer:coarse){#mtouch{display:flex}#mpause{display:block}}
+#mtouch button.on{border-color:var(--brass);background:rgba(214,163,90,.28)}
+#mtouch button.act{background:rgba(214,163,90,.22);border-color:var(--brass);font-weight:600;font-size:15px}
+#mt-crouch{display:none}
+#mrot{position:fixed;inset:0;z-index:12;background:rgba(5,7,14,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;pointer-events:auto;font-family:var(--serif)}
+#mrot div{font-size:64px;color:var(--brass);animation:p5rot 2.4s ease-in-out infinite}#mrot p{font-size:18px;max-width:300px;margin:0}
+@keyframes p5rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+@media (pointer:coarse){
+  #mbar .ab{display:none}
+  #mprompt{pointer-events:auto!important;cursor:pointer;font-size:15px;padding:10px 16px}
+  #mtouch{display:grid!important;grid-template-columns:repeat(2,56px);gap:8px;bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  #mtouch button{width:56px;height:56px}
+  #mpause{min-width:44px;min-height:44px}
+  #mdlg .opts button{padding:12px 14px}
+  #mscreen .btn{padding:12px 16px}
+}
+@media (pointer:coarse) and (orientation:portrait){body.p5play:not(.p5rotok) #mrot{display:flex}}
+@media (pointer:coarse) and (max-height:520px){
+  #mobj{max-width:40vw;top:calc(8px + env(safe-area-inset-top,0px))}#mobj .ch{font-size:9px}#mobj .rn{font-size:16px;margin:0 0 4px}#mobj ul{font-size:11px;gap:1px}
+  #mobj li.done{display:none}
+  #mbar{left:auto;right:calc(76px + env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));bottom:auto!important;min-width:150px;gap:3px;padding:3px 6px}
+  #mbar .lbl{font-size:9px}#mbar .track{height:4px}
+  #mtouch{bottom:calc(152px + env(safe-area-inset-bottom,0px));grid-template-columns:repeat(2,50px);gap:6px}#mtouch button{width:50px;height:50px;font-size:10px}
+  #msub{bottom:calc(10px + env(safe-area-inset-bottom,0px));width:min(560px,calc(100vw - 320px))}#msub .tx{font-size:13px}#msub .portrait{width:48px;height:58px}
+  #mprompt{top:calc(50% + 26px)}
+  #mtitle{font-size:22px}#mtitle svg{height:34px!important}
+  #mplaque{top:calc(8px + env(safe-area-inset-top,0px));bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:min(460px,calc(100vw - 260px));max-height:calc(100vh - 20px);overflow:auto;font-size:13px}
+  #mdlg{bottom:calc(6px + env(safe-area-inset-bottom,0px));max-height:calc(100vh - 16px);overflow:auto;padding:8px 12px;gap:10px}
+  #mdlg .portrait{width:56px;height:67px}#mdlg .tx{font-size:14px;min-height:0}#mdlg .opts button{font-size:13.5px;padding:8px 10px}#mdlg .opts button small{font-size:11px}
+  #mtbl{flex-wrap:nowrap;max-height:calc(100vh - 12px);padding:8px 10px;gap:10px}
+  #mtbl canvas{width:calc(100vh - 32px);max-width:48vw;flex:none}
+  #mtbl .side{min-width:0;font-size:13px;max-height:calc(100vh - 32px);overflow:auto}#mtbl .side p{font-size:13px;margin:0 0 6px}#mtbl h4{font-size:20px}
+  #mtbl .btn{padding:8px 10px}
+  #mscreen .card{max-height:calc(100vh - 16px)}#mscreen h2{font-size:24px}
+  #mmap{width:min(360px,calc(100vh - 30px))}
+}
+
+@media (pointer:coarse){#mbar{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
 @media (max-width:760px){#mobj .rn{font-size:18px}#mtitle{font-size:26px}#msub .tx{font-size:14px}#msub{bottom:calc(170px + env(safe-area-inset-bottom,0px))}#mplaque{top:auto;bottom:calc(230px + env(safe-area-inset-bottom,0px))}#mscreen h2{font-size:28px}#mdlg .portrait{width:64px;height:77px}#mdlg .tx{font-size:15px}}
 `;
 const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
@@ -1370,7 +1407,8 @@ hudEl.innerHTML=`<div id="mlensv"></div><div id="mind"></div>
 <div class="ab"><span id="ab-blink"><kbd>ПКМ</kbd>Рывок</span><span id="ab-lens" class="off"><kbd>V</kbd>Линза</span><span id="ab-decoy" class="off"><kbd>G</kbd>Зеркало σ</span><span><kbd>F</kbd>Действие</span></div></div>
 <div id="mlect" class="framed"></div><div id="mprompt"></div><div id="msub"></div><div id="mbark"></div><div id="mtitle"></div><div id="mtoast"></div>
 <div id="mplaque" class="framed"><div class="hd" id="mpl-hd"></div><p id="mpl-x"></p><div class="k" id="mpl-k"></div></div>
-<div id="mtouch"><button id="mt-blink">Рывок</button><button id="mt-decoy">σ</button><button id="mt-lens">Линза</button><button id="mt-act">F</button></div>
+<div id="mtouch"><button id="mt-blink">Рывок</button><button id="mt-decoy">σ</button><button id="mt-lens">Линза</button><button id="mt-act" class="act">F</button><button id="mt-run">Бег</button><button id="mt-map">Карта</button><button id="mt-crouch">Присесть</button></div>
+<div id="mrot"><div>⟲</div><p>Поверните телефон горизонтально — так виден весь город.</p><button class="btn" id="mrot-x">Играть так</button></div>
 <button class="btn" id="mpause">II</button>`;
 document.getElementById('ui').appendChild(hudEl);
 const flash=document.createElement('div');flash.id='mflash';document.body.appendChild(flash);
@@ -1983,13 +2021,13 @@ function act(a,ds){AU.init();
   else if(a==='teacher')teacher();
   else if(a==='lect'){campaign.lecturer=!campaign.lecturer;saveCampaign();teacher();}
   else if(a==='print'){window.print();}}
-function begin(){S.paused=false;S.over=false;S.room=-1;$('mroom').textContent='';screenHide();ui.obj();$('mplaque').style.display='none';$('msub').style.opacity=0;
+function begin(){document.body.classList.add('p5play');touchReset();if(matchMedia('(pointer:coarse)').matches&&!document.fullscreenElement)goFull();S.paused=false;S.over=false;S.room=-1;$('mroom').textContent='';screenHide();ui.obj();$('mplaque').style.display='none';$('msub').style.opacity=0;
   document.getElementById('mapwrap').hidden=S.A.kind!=='plane';document.getElementById('mapwrap').style.visibility=S.A.kind==='plane'?'visible':'hidden';lock();}
 function open(){const bad=['rooms','house','plane','flat'].filter(k=>!PROG[k]);if(bad.length){alert('Шейдеры не собрались: '+bad.join(', ')+'\n'+(PROG[bad[0]+'_err']||'').toString().slice(0,400));return;}
   active=true;document.body.classList.add('mission');hudEl.classList.add('on');
   for(const id of ['top','panel','stats','hint','mapwrap'])$(id).style.visibility='hidden';
   title();}
-function exit(){active=false;aiming=false;mapOn=false;mapC.classList.remove('on');screenHide();dlg.classList.remove('on');hudEl.classList.remove('on');document.body.classList.remove('mission');
+function exit(){active=false;aiming=false;mapOn=false;mapC.classList.remove('on');screenHide();dlg.classList.remove('on');hudEl.classList.remove('on');document.body.classList.remove('mission','p5play');
   for(const id of ['top','panel','stats','hint','mapwrap'])$(id).style.visibility='';
   document.getElementById('danger').style.opacity=0;AU.setDrone(0,false);if(S)S.paused=true;setWorld(world);
   try{if(document.pointerLockElement)document.exitPointerLock();}catch(_){}}
@@ -2021,6 +2059,16 @@ const td=$('mt-decoy');td.addEventListener('pointerdown',e=>{aiming=true;aimMode
 td.addEventListener('pointerup',()=>{if(aiming){aiming=false;doDecoy();}});td.addEventListener('pointercancel',()=>aiming=false);
 $('mt-lens').addEventListener('click',()=>toggleLens());
 $('mt-act').addEventListener('click',interact);$('mpause').addEventListener('click',pause);
+$('mprompt').addEventListener('click',()=>{if(S&&!S.dlg&&!S.paused)interact();});
+const tgl=(id,code)=>{const b=$(id);b.addEventListener('click',()=>{const on=!keys.has(code);on?keys.add(code):keys.delete(code);b.classList.toggle('on',on);});};
+tgl('mt-run','ShiftLeft');tgl('mt-crouch','ControlLeft');
+$('mt-map').addEventListener('click',()=>{if(!S||screen.classList.contains('on'))return;mapOn=!mapOn;mapC.classList.toggle('on',mapOn);$('mt-map').classList.toggle('on',mapOn);});
+$('mrot-x').addEventListener('click',()=>document.body.classList.add('p5rotok'));
+function touchReset(){for(const c of ['ShiftLeft','ControlLeft'])keys.delete(c);for(const id of ['mt-run','mt-crouch','mt-map'])$(id).classList.remove('on');mapOn=false;mapC.classList.remove('on');
+  $('mt-crouch').style.display=S&&(CH().id==='prologue'||CH().id==='ch4')?'block':'none';}
+function goFull(){const d=document.documentElement;try{const r=(d.requestFullscreen||d.webkitRequestFullscreen||(()=>{})).call(d,{navigationUI:'hide'});
+  const lk=()=>{try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{});}catch(_){}};if(r&&r.then)r.then(lk).catch(()=>{});else lk();}catch(_){}}
+
 
 function frame(dt,now){
   if(S&&!S.paused&&!S.over&&!S.dlg)update(dt);else look=[0,0];
