@@ -1528,7 +1528,7 @@ function puzzleCirc(cv,side,close){
   const ip=(a,b)=>a[0]*b[0]+a[1]*b[1]-a[2]*b[2],sub=(a,b)=>a.map((v,i)=>v-b[i]);
   const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],-(a[0]*b[1]-a[1]*b[0])];
   const toZ=X=>[X[0]/(1+X[2]),X[1]/(1+X[2])],px=z=>[C+z[0]*R,C-z[1]*R];
-  side.innerHTML=`<div class="ch">Чертёжный стол Криволинейных</div><h4>Описание без циркуля</h4><p>Церковь учит: через любые три точки проходит окружность. Перетаскивайте вершины треугольника в круге Пуанкаре. Голубые линии — серединные перпендикуляры к сторонам; где они сходятся, там центр.</p>
+  side.innerHTML=`<div class="ch">Чертёжный стол Криволинейных</div><h4>Описание без циркуля</h4><p>Церковь учит: через любые три точки проходит окружность. Перетаскивайте вершины треугольника в круге Пуанкаре. Голубые линии — серединные перпендикуляры к сторонам; где они сходятся, там центр (курсовая, п. 3.5).</p>
   <ul class="tasks"><li data-t="circle">Окружность: перпендикуляры пересекаются внутри</li><li data-t="horo">Орицикл: перпендикуляры сходятся на абсолюте</li><li data-t="equi">Эквидистанта: перпендикуляры расходятся</li></ul><p class="st"></p><div class="row"><button class="btn" data-k="x">Отойти от стола</button></div>`;
   function iso(f,N,col,dash,lw){const h=2/N,v=[];for(let j=0;j<=N;j++){v.push([]);for(let i=0;i<=N;i++){const z=[-1+i*h,-1+j*h];v[j].push(z[0]*z[0]+z[1]*z[1]<0.997?f(toH(z)):NaN);}}
     x.strokeStyle=col;x.lineWidth=lw||3;x.setLineDash(dash||[]);x.beginPath();
@@ -1669,7 +1669,7 @@ function teacher(){screenShow(`<div class="ch">Педагогический сл
   <p>Режим «Лектор» отключает стелс (стражи не замечают игрока) и выводит на экран теорему главы и живые измерения — расстояние до старта, этаж и масштаб, Π(h). Удобно показывать на уроке через проектор.</p>
   <div class="row"><button class="btn main" data-a="lect">Режим «Лектор»: ${campaign.lecturer?'включён':'выключен'}</button><button class="btn" data-a="print">Распечатать карточки</button></div>
   <h3 style="font:600 11px var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-top:16px">Методические карточки</h3>
-  ${STORY.cards.map(c=>{const ch=CHS.find(x=>x.id===c.ch);return `<div class="card2"><h4>${ch.n}. ${ch.title}</h4><p><b>Цель:</b> ${c.goal}</p><p><b>Теорема:</b> ${c.theorem}</p><p><b>Что наблюдать:</b> ${c.observe}</p><p><b>Вопросы для обсуждения:</b></p><ul>${c.questions.map(q=>`<li>${q}</li>`).join('')}</ul><p><b>Связь с курсовой:</b> ${c.ref||'—'}. <b>Мир для самостоятельной прогулки:</b> ${c.world}.</p></div>`;}).join('')}
+  ${STORY.cards.map(c=>{const ch=CHS.find(x=>x.id===c.ch);return `<div class="card2"><h4>${ch.n}. ${ch.title}</h4><p><b>Цель:</b> ${c.goal}</p><p><b>Теорема:</b> ${c.theorem}</p><p><b>Что наблюдать:</b> ${c.observe}</p><p><b>Вопросы для обсуждения:</b></p><ul>${c.questions.map(q=>`<li>${q}</li>`).join('')}</ul><p><b>Связь с курсовой:</b> ${c.ref||'—'}.${c.scenes?` <b>Сцены «Круга Кэли — Клейна»:</b> ${c.scenes}.`:''} <b>Мир для самостоятельной прогулки:</b> ${c.world}.</p></div>`;}).join('')}
   ${backBtn()}`);}
 function chapters(){screenShow(`<div class="ch">Пятый Постулат</div><h2>Главы</h2><div class="chlist">${CHS.map((c,i)=>`<button data-a="brief" data-ch="${i}" ${i>campaign.unlocked?'disabled':''}><span>${c.title}</span><small>${c.n}</small></button>`).join('')}</div>
   <div class="row"><button class="btn" data-a="title">Назад</button></div>`);}
