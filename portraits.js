@@ -111,6 +111,7 @@ const P={
   gauss:{name:'Карл Фридрих Гаусс',sub:'1777–1855',hair:'cap',bust:'collar'},
   lobachevsky:{name:'Николай Иванович Лобачевский',sub:'1792–1856',hair:'swept',bust:'collar'},
   wachter:{name:'Фридрих Людвиг Вахтер',sub:'1792–1817',cond:'Прижизненный портрет нам не известен; силуэт условный.',hair:'wavy',bust:'collar'},
+  farkas:{name:'Фаркаш Бойяи',sub:'1775–1856',hair:'wavy',bust:'coat'},
   bolyai:{name:'Янош Бойяи',sub:'1802–1860',cond:'Подлинного портрета Бойяи не сохранилось; распространённое изображение недостоверно. Силуэт условный — мундир военного инженера.',hair:'wavy',beard:'mustache',bust:'uniform'},
   riemann:{name:'Бернхард Риман',sub:'1826–1866',hair:'short',beard:'full',bust:'coat'},
   cayley:{name:'Артур Кэли',sub:'1821–1895',hair:'bald',side:1,bust:'coat'},

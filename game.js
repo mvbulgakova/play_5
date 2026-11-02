@@ -121,6 +121,13 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     float bx=abs(mod(q.x+0.065,0.13)-0.065), by=abs(mod(q.y+0.065,0.13)-0.065);
     float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.012,rr-0.40);
     m=2; return min(ring,bars); }
+  if(kind==17){ // чертёжный стол: наклонная доска с синькой, лампа на латунной стойке
+    vec3 b=q-vec3(0,0.03,0); b.yz=rot(-0.45)*b.yz;
+    float board=sdBox(b,vec3(0.065,0.003,0.045)), top=sdBox(q-vec3(0,0.012,0),vec3(0.07,0.004,0.05));
+    vec3 lq=vec3(abs(q.x),q.y,abs(q.z));float legs=sdCaps(lq,vec3(0.06,0.012,0.04),vec3(0.06,-0.085,0.04),0.004);
+    float arm=sdCaps(q,vec3(0.06,0.02,-0.04),vec3(0.05,0.1,-0.03),0.0025), lmp=sdSph(q-vec3(0.05,0.1,-0.03),0.012);
+    float paper=sdBox(b-vec3(0,0.0036,0),vec3(0.05,0.0008,0.035));
+    float d=min(board,top); m=16; if(legs<d){d=legs;m=16;} if(arm<d){d=arm;m=2;} if(lmp<d){d=lmp;m=15;} if(paper<d){d=paper;m=18;} return d; }
   m=0; return sdSph(q,0.03);
 }
 // материалы объектов: m — номер материала фигуры, vr — вариант персонажа
@@ -145,6 +152,8 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
     emis=mix(vec3(0.30,0.55,1.0),vec3(0.95,0.97,1.0),smoothstep(0.35,0.75,sw))*(0.55+0.85*par)*(0.55+0.45*smoothstep(0.122,0.03,length(q.xy))); base=vec3(0.02); }
   else if(mm==12){ base=vec3(1.); emis=vec3(1.0,0.92,0.75)*(2.2+0.8*sin(uTime*8.)); }
   else if(mm==13){ base=vec3(0.1); emis=(kind==13? vec3(0.7,0.35,1.0) : vec3(0.35,0.8,1.0))*(1.6+0.8*sin(uTime*3.))*(1.-0.85*par); }
+  else if(mm==16){ base=vec3(0.22,0.12,0.06)*(0.75+0.5*fbm(q*160.)); rough=0.5; }
+  else if(mm==18){ base=vec3(0.10,0.22,0.42); rough=0.9; float gl=max(step(fract(q.x*90.),0.08),step(fract(q.z*90.),0.08)); emis=vec3(0.45,0.7,1.0)*(0.12+0.25*gl)*(1.+2.*par); }
   else if(mm==14){ base=vec3(0.55,0.53,0.50)*(0.8+0.3*fbm(q*120.)); rough=0.8; }
   if(kind==10){ emis+=vec3(0.35,0.75,1.0)*(0.6+0.6*pow(1.-f,2.)); base*=0.3; }
 }`;
@@ -622,7 +631,7 @@ const AU={ctx:null,on:true,drone:null,
 
 // ═══════════════ адаптеры геометрий ═══════════════
 const LN2=Math.LN2;
-const BOUND={1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
+const BOUND={17:0.16,1:0.16,2:0.04,3:0.095,4:0.07,5:0.15,7:0.05,8:0.16,9:0.27,10:0.16,12:0.08,13:0.07,15:0.11,16:0.45};
 // базовые операции в пространстве Лобачевского
 const HYP={dist:hyperbolicDistance,dirTo,advance:(p,u,s)=>advancePose(p,u,s)};
 
@@ -847,6 +856,7 @@ const LEVELS={
       {id:'plumb2',kind:12,pos:[2.5,0.25,1.5,1],name:'Отвес у колонны'},
       {id:'plumb3',kind:12,pos:[-1.5,0.25,2.5,1],name:'Отвес у западной стены'},
       {id:'euclid',kind:2,pos:[1.5,0.72,0.5,1],lemma:'euclid'},
+      {id:'rj',kind:4,pos:[2.5,0.3,0.5,1],doc:'r_journal'},
       {id:'protractor',kind:13,pos:[3.5,0.3,4.5,1],name:'Угломер',cond:S=>S.got.plumb1&&S.got.plumb2&&S.got.plumb3},
     ];
     return {A,items:it,guards:[],
@@ -867,7 +877,8 @@ const LEVELS={
     const it=[{id:'lens',kind:3,pos:P('a3',[0.05,-0.30,0.10]),name:'Линза Абсолюта'},{id:'rec',kind:4,pos:P('b3',[-0.10,-0.30,0.05]),name:'Лист 281',doc:'rec'},
       {id:'saccheri',kind:2,pos:P('s2',[0.25,0.15,-0.10]),lemma:'saccheri'},{id:'lambert',kind:2,pos:P('s1',[-0.20,0.25,0.10]),lemma:'lambert'},
       {id:'lobachevsky',kind:2,pos:P('b2',[0.10,0.30,-0.15]),lemma:'lobachevsky'},{id:'coxeter',kind:2,pos:P('c1',[0.20,-0.25,0.20]),lemma:'coxeter'},
-      {id:'sh0',kind:7,pos:P('a2',[-0.25,-0.15,0.15])},{id:'sh1',kind:7,pos:P('b1',[0.15,0.28,-0.20])},{id:'sh2',kind:7,pos:P('s2',[-0.25,-0.20,0.10])},
+      {id:'sh0',kind:7,pos:P('a2',[-0.25,-0.15,0.15])},{id:'sh1',kind:7,pos:P('b1',[0.15,0.28,-0.20])},
+      {id:'r117',kind:4,pos:P('b2',[-0.25,-0.10,0.20]),doc:'r117'},{id:'r203',kind:4,pos:P('a2',[0.20,0.25,-0.10]),doc:'r203'},{id:'sh2',kind:7,pos:P('s2',[-0.25,-0.20,0.10])},
       {id:'exit',kind:5,pos:advancePose(c2,dirTo(c2,c1),-0.42).p,face:c1,exit:S=>S.got.lens&&S.got.rec}];
     const gd=[{name:'Чертёжник Орт',route:A.route(['hub','a1','s1','b1'])},{name:'Чертёжник Евтих',route:A.route(['a2','a3','s1','a1'])},
       {name:'Чертёжник Пасх',route:A.route(['b1','b2','b3','b2'])},{name:'Чертёжник Нил',route:A.route(['c1','c2'],2.6)}];
@@ -883,7 +894,9 @@ const LEVELS={
       start:{room:'bath',toward:'cell'}};
     const A=makeRooms(L);const P=(r,o)=>A.pointIn(r,o);
     const lk=A.ROOMS[A.RI('lock')].c,yd=A.ROOMS[A.RI('yard')].c;
-    const it=[{id:'lens',kind:3,pos:P('ev',[0.10,-0.28,0.10]),name:'Линза Абсолюта'},
+    const it=[{id:'lens',kind:3,pos:P('ev',[0.10,-0.28,0.10]),name:'Линза Абсолюта',lock:'gap'},
+      {id:'desk_gap',kind:17,pos:P('ev',[-0.18,-0.22,-0.12]),puzzle:'gap',name:'замок-сота'},
+      {id:'r044',kind:4,pos:P('well',[-0.2,-0.2,0.2]),doc:'r044'},{id:'r260',kind:4,pos:P('post',[0.2,0.25,0.1]),doc:'r260'},
       {id:'bolyai',kind:2,pos:P('well',[0.2,0.25,-0.1]),lemma:'bolyai'},{id:'gauss',kind:2,pos:P('ring',[-0.2,-0.25,0.15]),lemma:'gauss'},{id:'sight',kind:2,pos:P('gal2',[0.15,0.3,0.1]),lemma:'sight'},
       {id:'sh0',kind:7,pos:P('bath',[0.25,0.2,0.1])},{id:'sh1',kind:7,pos:P('yard',[-0.2,-0.25,0.15])},
       {id:'exit',kind:5,pos:advancePose(lk,dirTo(lk,yd),-0.42).p,face:yd,exit:S=>S.got.lens}];
@@ -891,19 +904,22 @@ const LEVELS={
       {name:'Тюремщик Фавст',vr:6,route:A.route(['cell','gal1','ring','well'])},{name:'Тюремщик Лука',vr:6,route:A.route(['gal1','gal2','post','cell'])},
       {name:'Тюремщик Ерм',vr:6,route:A.route(['lock','yard'],2.5)}];
     return {A,items:it,guards:gd,
-      objectives:S=>[{t:'Вернуть Линзу — Кладовая улик за постом Касселя',done:S.got.lens},{t:'Уйти через Шлюз',locked:!S.got.lens}],
+      objectives:S=>[{t:'Отпереть шкаф с Линзой: чертёжный стол в Кладовой улик',done:!!S.flags.gapDone},{t:'Вернуть Линзу — Кладовая улик за постом Касселя',done:S.got.lens,locked:!S.flags.gapDone},{t:'Уйти через Шлюз',locked:!S.got.lens}],
+      onSolve(pz){if(pz==='gap')say('gapdone');},
       abil:{blink:true,lens:false,decoy:false}};},
 
   ch3:()=>{const L={start:[0.5,0.18,0],minFloor:-1,maxFloor:3,floorNames:{'-1':'Подвал','0':'Этаж 0 · основание','1':'Этаж 1','2':'Этаж 2','3':'Этаж 3 · обитель Криволинейных'}};
     const A=makeHouse(L);const P=(x,y,f,h)=>A.pointAt(x,y,f,h);
     const it=[{id:'wachter',kind:2,pos:P(0.7,0.6,1,0.4),lemma:'wachter'},{id:'horocycle',kind:2,pos:P(0.5,0.85,2,0.4),lemma:'horocycle'},
       {id:'minkowski',kind:2,pos:P(1.5,1.5,0,0.35),lemma:'minkowski'},{id:'sh0',kind:7,pos:P(0.3,0.7,1,0.3)},{id:'sh1',kind:7,pos:P(0.8,0.3,2,0.3)},
-      {id:'oricycla',kind:8,vr:2,pos:P(1.5,0.5,3,0.33),name:'Сестра Орицикла',talk:true}];
+      {id:'desk_circ',kind:17,pos:P(0.3,0.25,2,0.3),puzzle:'circ',name:'пароль Криволинейных'},{id:'r151',kind:4,pos:P(0.8,0.15,1,0.4),doc:'r151'},
+      {id:'oricycla',kind:8,vr:2,pos:P(1.5,0.5,3,0.33),name:'Сестра Орицикла',talk:true,cond:S=>!!S.flags.circDone}];
     const gd=[{name:'Надзиратель Аммоний',vr:7,route:A.route([[0.55,0.45,1],[0.92,0.45,1],[0.92,0.92,1],[0.55,0.92,1]])},
       {name:'Надзиратель Дидим',vr:7,route:A.route([[0.08,0.5,2],[0.9,0.5,2],[0.9,0.12,2]],1.6)},
       {name:'Надзиратель Филон',vr:7,route:A.route([[1.2,0.2,2],[1.8,0.8,2]],2)}];
     return {A,items:it,guards:gd,
-      objectives:S=>[{t:'Подняться на третий этаж',done:(S.room-100)>=3},{t:'Найти Сестру Орициклу',done:S.got.oricycla}],
+      objectives:S=>[{t:'Решить пароль Криволинейных — стол на втором этаже',done:!!S.flags.circDone},{t:'Подняться на третий этаж',done:(S.room-100)>=3},{t:'Найти Сестру Орициклу',done:S.got.oricycla,locked:!S.flags.circDone}],
+      onSolve(pz){if(pz==='circ'){campaign.lemmas.farkas=1;saveCampaign();say('circdone');showLemma('farkas');}},
       onRoom(r){if(r-100===2)say('floor2');},
       onTalk(id){if(id==='oricycla'){scene(CH().scene,()=>{campaign.decoy=1;saveCampaign();completeChapter();});}},
       abil:{blink:true,lens:true,decoy:false}};},
@@ -919,7 +935,7 @@ const LEVELS={
     const bern=atHeight(f,0.16),gate=advancePose(bern,dirTo(bern,atHeight(O,0.16)),-0.6).p;
     const it=[{id:'st0',kind:15,pos:P(2.2,40),name:'Межевой камень'},{id:'st1',kind:15,pos:P(2.6,160),name:'Межевой камень'},{id:'st2',kind:15,pos:P(2.4,270),name:'Межевой камень'},
       {id:'poincare',kind:2,pos:P(1.4,100,0.3),lemma:'poincare'},{id:'riemann',kind:2,pos:P(3.0,220,0.3),lemma:'riemann'},{id:'pentagon',kind:2,pos:P(1.8,330,0.3),lemma:'pentagon'},
-      {id:'sh0',kind:7,pos:P(1.2,200,0.3)},{id:'sh1',kind:7,pos:P(2.0,0,0.3)},
+      {id:'sh0',kind:7,pos:P(1.2,200,0.3)},{id:'sh1',kind:7,pos:P(2.0,0,0.3)},{id:'r099',kind:4,pos:P(2.0,300,0.3),doc:'r099'},
       {id:'bernhard',kind:8,vr:3,pos:bern,name:'Бернхард',talk:true,cond:S=>S.got.st0&&S.got.st1&&S.got.st2},
       {id:'exit',kind:5,pos:gate,face:bern,exit:S=>S.got.bernhard,cond:S=>S.got.bernhard}];
     const gd=[{name:'Циркулятор Кассель',route:A.route([[2.2,60],[3.0,100],[2.6,150],[2.0,115]],1.6),kassel:true},
@@ -943,14 +959,15 @@ const LEVELS={
     const sc=A.ROOMS[A.RI('sanct')].c,gt=A.ROOMS[A.RI('gate')].c;
     const mach=advancePose(sc,dirTo(sc,gt),-0.38).p;
     const it=[{id:'beltrami',kind:2,pos:P('crypt',[0.2,0.25,-0.1]),lemma:'beltrami'},{id:'klein',kind:2,pos:P('loggia',[-0.2,0.22,0.12]),lemma:'klein'},
-      {id:'sh0',kind:7,pos:P('scri',[0.22,-0.2,0.1])},{id:'sh1',kind:7,pos:P('reli',[-0.2,0.2,-0.15])},
+      {id:'sh0',kind:7,pos:P('scri',[0.22,-0.2,0.1])},{id:'sh1',kind:7,pos:P('reli',[-0.2,0.2,-0.15])},{id:'r001',kind:4,pos:P('crypt',[-0.2,-0.2,0.15]),doc:'r001'},
+      {id:'flight',kind:5,pos:advancePose(gt,dirTo(gt,A.ROOMS[A.RI('nave')].c),-0.35).p,face:A.ROOMS[A.RI('nave')].c,cond:S=>!!S.escape,fin:true},
       {id:'grille',kind:16,pos:A.faceCenter('gate','sanct'),face:sc,inert:true},
       {id:'machine',kind:9,pos:mach,name:'Главная Машина Прямизны',talk:true,rad:0.42},
       {id:'euclid',kind:8,vr:5,pos:advancePose(mach,perpAt(mach,dirTo(mach,sc)),0.28).p,face:gt,inert:true}];
     const gd=[{name:'Страж Нефа Варсонофий',vr:9,route:A.route(['nave','cloi','scri','cloi'])},{name:'Страж Реликвий Поликарп',vr:9,route:A.route(['nave','reli','crypt','reli'])},
       {name:'Страж Святилища Евлогий',vr:9,route:A.route(['choir','sanct'],2.4)},{name:'Циркулятор Кассель',route:A.route(['stair','choir'],2.2),kassel:true}];
     return {A,items:it,guards:gd,
-      objectives:S=>[{t:'Обойти ребро и попасть в Святилище',done:S.room===A.RI('sanct')||S.got.machine},{t:'Подойти к Главной Машине Прямизны',done:S.got.machine}],
+      objectives:S=>S.escape?[{t:'Бежать из Цитадели — к Воротам, в обход ребра'+(S.escape.id==='postulate'?' (охотится только Кассель)':'')}]:[{t:'Обойти ребро и попасть в Святилище',done:S.room===A.RI('sanct')||S.got.machine},{t:'Подойти к Главной Машине Прямизны',done:S.got.machine}],
       onRoom(r){if(r===A.RI('choir'))say('near');},
       onTalk(id){if(id==='machine')debate();},
       abil:{blink:true,lens:true,decoy:true}};},
@@ -983,7 +1000,7 @@ class Guard{
     return base*lightF*motionF*fl/(1+0.9*sh*sh);}
   sees_(x,maxD){const d=hyperbolicDistance(this.pos,x);if(d>maxD)return false;
     if(Math.acos(clamp(md(this.dir,dirTo(this.pos,x)),-1,1))>this.fov/2)return false;return S.A.los(this.pos,x);}
-  toJSON(){const o={};for(const k of ['wp','pos','dir','state','alert','sleep','timer','wait','goal','lastSeen','seenAgo','found'])o[k]=this[k];return o;}
+  toJSON(){const o={};for(const k of ['wp','pos','dir','state','alert','sleep','timer','wait','goal','lastSeen','seenAgo','found','passive'])o[k]=this[k];return o;}
 }
 
 // ═══════════════ интерфейс ═══════════════
@@ -1095,13 +1112,20 @@ const css=`
 #mmap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100vw - 32px));aspect-ratio:1;background:rgba(8,12,26,.92);border:1px solid var(--brass);border-radius:50%;display:none;pointer-events:none;z-index:4}
 #mmap.on{display:block}
 @media print{body>*:not(#mscreen){display:none!important}#mscreen{position:static;background:#fff;backdrop-filter:none}#mscreen .card{background:#fff;color:#000;max-height:none;box-shadow:none;border:0}#mscreen .row,#mscreen .btn{display:none}}
+#mtbl{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(980px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;display:none;z-index:7;background:radial-gradient(ellipse at top,#1c2140,#0b0e1a 75%);padding:12px 16px;pointer-events:auto;box-shadow:0 20px 80px rgba(0,0,0,.7)}
+#mtbl.on{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;animation:p5fade .35s ease both}
+#mtbl canvas{width:min(520px,100%);aspect-ratio:1;border:1px solid var(--line);touch-action:none;cursor:crosshair}
+#mtbl .side{flex:1;min-width:240px;line-height:1.5}#mtbl .side p{font-family:var(--serif);font-size:15px;margin:0 0 10px}
+#mtbl h4{margin:2px 0 8px;font-family:var(--display);font-weight:400;font-size:30px}#mtbl .ch{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
+#mtbl .tasks{padding-left:0;list-style:none;font-size:14px}#mtbl .tasks li::before{content:"◇ ";color:var(--brass)}#mtbl .tasks li.done{color:#9fdc8a}#mtbl .tasks li.done::before{content:"◆ "}
+#mtbl .btn{margin:0 6px 6px 0}
 @keyframes p5draw{to{stroke-dashoffset:0}}
 @keyframes p5in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes p5fade{from{opacity:0}to{opacity:1}}
 @keyframes p5pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.25)}}
 #mtitle .fx path,#mscreen .wordmark .fx path,#mscreen .fxl .fx path{stroke-dasharray:64;stroke-dashoffset:64;animation:p5draw 1.6s cubic-bezier(.4,.1,.2,1) forwards}
 #mscreen.on .card{animation:p5in .45s ease both}
-#mdlg.on{animation:p5in .35s ease both}#mdlg.on .tx{animation:p5fade .5s ease both}
+#mdlg.on{animation:p5fade .35s ease both}#mdlg.on .tx{animation:p5fade .5s ease both}
 #msub .portrait{animation:p5fade .6s ease both}
 #mind .gi.chase{animation:p5pulse .5s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){#mtitle .fx path,#mscreen .fx path{animation:none;stroke-dashoffset:0}#mscreen.on .card,#mdlg.on{animation:none}}
@@ -1143,15 +1167,15 @@ function fresh(chIdx){
   S=s;s.c=A.init();
   s.items.forEach(it=>{const lookAt=it.face||(A.kind==='flat'?null:(A.ROOMS&&A.roomOf(it.pos)>=0?A.ROOMS[A.roomOf(it.pos)].c:null));
     if(A.kind==='flat'){it.F=I4();return;}
-    const fwd=lookAt?dirTo(it.pos,lookAt):perpAt(it.pos,[1,0,0,0]);it.F=frameAt(it.pos,fwd,A.kind==='plane'?[0,0,1,0]:null);
+    const fwd=lookAt?dirTo(it.pos,lookAt):perpAt(it.pos,[1,0,0,0]);it.F=frameAt(it.pos,fwd,A.kind==='plane'?[0,0,1,0]:A.kind==='house'?A.up(it.pos):null);
     it.room=A.ROOMS?A.roomOf(it.pos):-1;it.light=A.kind==='rooms'&&it.room>=0?A.ROOMS[it.room].c:(A.kind==='flat'?null:advancePose(it.pos,A.up(it.pos),0.55).p);});
   s.guards=LV.guards.map((g,i)=>new Guard(g,i));
   s.start=A.pos();
   return s;}
 function serialize(){return JSON.stringify({v:2,ch:S.ch,c:S.c,mana:S.mana,abil:S.abil,got:S.got,lit:S.lit,
-  guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags});}
+  guards:S.guards.map(x=>x.toJSON()),visited:S.visited,time:S.time,stats:S.stats,flags:S.flags,escape:S.escape||null});}
 function deserialize(str){const o=JSON.parse(str);if(o.v!==2)return null;const s=fresh(o.ch);
-  Object.assign(s,{c:o.c,mana:o.mana,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags});
+  Object.assign(s,{c:o.c,mana:o.mana,abil:o.abil,got:o.got,lit:o.lit,visited:o.visited,time:o.time,stats:o.stats,flags:o.flags,escape:o.escape||null});
   o.guards.forEach((gj,i)=>{const G=s.guards[i];if(!G)return;Object.assign(G,gj);G.scan=null;if(G.state==='chase'){G.state='search';G.timer=0;}G.alert=Math.min(G.alert,0.6);});
   s.room=-1;return s;}
 function save(){try{localStorage.setItem(SAVE_KEY,serialize());toast('Сохранено');}catch(_){toast('Сохранить не удалось');}}
@@ -1202,7 +1226,7 @@ function doDecoy(){if(!S.abil.decoy){toast('Зеркала σ ещё нет');re
   if(S.mana<DECOY_COST){toast('Не хватает дефекта');return;}
   S.mana-=DECOY_COST;let pt=b.pt;if(S.A.constrain)pt=S.A.constrain(pt);S.decoy={pos:pt,t:6,F:frameAt(pt,dirTo(pt,S.A.pos()),S.A.kind==='plane'?[0,0,1,0]:null),nt:0};
   AU.mirror();kasselFeels();}
-function noise(at,loud){if(campaign.lecturer)return;for(const G of S.guards){if(G.sleep)continue;const d=hyperbolicDistance(G.pos,at),sh=Math.sinh(d),h=loud/(1+sh*sh);
+function noise(at,loud){if(campaign.lecturer)return;for(const G of S.guards){if(G.sleep||G.passive)continue;const d=hyperbolicDistance(G.pos,at),sh=Math.sinh(d),h=loud/(1+sh*sh);
   if(h>0.08){G.alert=clamp(G.alert+0.6*h,0,1);G.heard=at.slice();if(G.state==='patrol'&&G.alert>0.15){G.state='suspect';G.timer=0;G.goal=at.slice();G.scan=null;bark(G,'suspect');}}}}
 function visibleItems(){return S.items.filter(it=>!S.got[it.id]&&(!it.cond||it.cond(S)));}
 function interactTarget(){const A=S.A,p=A.pos();
@@ -1210,18 +1234,20 @@ function interactTarget(){const A=S.A,p=A.pos();
     if(d<0.45){const ang=Math.acos(clamp(md(G.dir,dirTo(G.pos,p)),-1,1));
       if(ang>G.fov/2*0.85||G.alert<0.35)return G.kassel?{type:'none',label:'Кассель не спит: маятник качается и во сне'}:{type:'guard',G,label:'Усыпить стража'};}}
   for(const it of visibleItems()){if(it.kind===5||it.inert)continue;if(A.dist(p,it.pos)<(it.rad||0.3))
-    return {type:'item',it,label:it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?'Коснуться камня':'Взять: '+it.name};}
+    return {type:'item',it,label:it.kind===4&&STORY.records&&STORY.records[it.doc]?'Прочесть запись вычеркнутого':it.kind===17?(S.flags[it.puzzle+'Done']?'Чертёжный стол (решено)':'Чертёжный стол: '+it.name):it.talk?(it.kind===9?'Коснуться Машины':'Говорить: '+it.name):it.kind===2?'Прочесть лемму':it.kind===7?'Взять крупицу дефекта':it.kind===12?'Снять показания':it.kind===15?'Коснуться камня':'Взять: '+it.name};}
   if(A.lights){const r=S.room;if(A.lampNear(r,p))return {type:'lamp',r,label:S.lit[r]?'Погасить лампу':'Зажечь лампу'};}
   return null;}
 function interact(){const t=interactTarget();if(!t||t.type==='none')return;
   if(t.type==='guard'){t.G.sleep=true;t.G.alert=0;t.G.state='sleep';S.stats.sleeps++;AU.sleep();say('sleep');}
   else if(t.type==='item'){const it=t.it;
+    if(it.kind===17){if(S.flags[it.puzzle+'Done']){toast('Задача уже решена');return;}openTable(it.puzzle,()=>{S.flags[it.puzzle+'Done']=1;AU.pick();LV.onSolve&&LV.onSolve(it.puzzle);ui.obj();save();});return;}
+    if(it.lock&&!S.flags[it.lock+'Done']){say('locked');toast('Заперто');return;}
     if(it.talk){S.got[it.id]=1;ui.obj();LV.onTalk&&LV.onTalk(it.id);return;}
     S.got[it.id]=1;AU.pick();
     if(it.kind===2){campaign.lemmas[it.lemma]=1;saveCampaign();showLemma(it.lemma);}
     else if(it.kind===7){S.mana=Math.min(1,S.mana+0.5);toast('Дефект +0,5');}
     else if(it.kind===3){S.abil.lens=true;ui.obj();say('pick:lens');save();}
-    else if(it.kind===4){const D=(CH().docs||{})[it.doc];if(D)showPlaque(D);say('pick:'+it.id);save();}
+    else if(it.kind===4){const R=(STORY.records||{})[it.doc];const D=(CH().docs||{})[it.doc]||R;if(R){campaign.records={...(campaign.records||{}),[it.doc]:1};saveCampaign();}if(D)showPlaque(D);say('pick:'+it.id);save();}
     else if(it.kind===12){toast(it.name+': отвесно, 90°');}
     else if(it.kind===15){toast('Межевой камень: знак Эллиптиков');}
     ui.obj();LV.onPick&&LV.onPick(it.id);}
@@ -1248,12 +1274,14 @@ function update(dt){
   if(S.lensOn){S.mana-=0.05*dt;if(S.mana<=0){S.mana=0;S.lensOn=false;}}
   else if(S.mana<REGEN_CAP)S.mana=Math.min(REGEN_CAP,S.mana+0.03*dt);
   if(inp.run&&inp.moving>0.1)noise(p,0.9*dt*6);
+  if(S.graceT>0)S.graceT-=dt;
   if(S.decoy){const D=S.decoy;D.t-=dt;D.nt-=dt;if(D.nt<=0){D.nt=0.8;noise(D.pos,0.5);}if(D.t<=0)S.decoy=null;}
   const lightF=A.lightF(r),motionF=inp.moving>0.1?(inp.run?1.4:1):0.6;
   let maxA=0;
   for(const G of S.guards){if(G.sleep)continue;updateGuard(G,dt,p,lightF,motionF);maxA=Math.max(maxA,G.alert);}
   S.maxA=maxA;
   for(const it of visibleItems())if(it.kind===5&&A.dist(p,it.pos)<0.22){
+    if(it.fin){ending(S.escape.id,S.escape.score);return;}
     if(!it.exit||it.exit(S))completeChapter();else say('early');}
   if(S.subs.length){const sub=S.subs[0];if(!sub.shown){sub.shown=1;if(sub.who==='nikolai'&&!S.flags.motif){S.flags.motif=1;AU.nikolai();}const inf=sub.who==='—'?null:PORTRAITS.info(sub.who);
       $('msub').innerHTML=`${inf?PORTRAITS.svg(sub.who,'portrait'):''}<div class="tx">${inf?`<span class="who">${inf.name}</span>`:''}${sub.text}</div>`;$('msub').style.opacity=1;}
@@ -1261,7 +1289,7 @@ function update(dt){
   if(S.plaqueT>0){S.plaqueT-=dt;if(S.plaqueT<=0)$('mplaque').style.display='none';}
 }
 function updateGuard(G,dt,p,lightF,motionF){
-  const sc=campaign.lecturer?0:G.perceive(p,lightF,motionF);G.sees=sc;
+  const sc=campaign.lecturer||G.passive?0:G.perceive(p,lightF,motionF)*(S.graceT>0?0.12:1);G.sees=sc;
   if(sc>0){G.alert=clamp(G.alert+dt*RATE*sc*(G.kassel?1.3:1),0,1);G.lastSeen=p.slice();G.seenAgo=0;}
   else{G.seenAgo+=dt;G.alert=clamp(G.alert-dt*(G.state==='chase'?0.10:0.22),0,1);}
   if(S.decoy&&G.state!=='chase'){const dsc=G.perceive(S.decoy.pos,1,1);if(dsc>0){G.alert=Math.min(0.9,G.alert+dt*RATE*dsc);G.goal=S.decoy.pos.slice();
@@ -1270,7 +1298,7 @@ function updateGuard(G,dt,p,lightF,motionF){
   for(const H of S.guards)if(H!==G&&H.sleep&&!H.found&&G.sees_(H.pos,2.6)){H.found=true;S.stats.bodies++;
     G.alert=Math.max(G.alert,0.75);G.state='search';G.goal=H.pos.slice();G.timer=0;G.scan=null;AU.alert();bark(G,'body');}
   if(G.alert>=1&&G.state!=='chase'){G.state='chase';G.scan=null;S.stats.alerts++;AU.alert();bark(G,'chase');say('seen');
-    for(const H of S.guards)if(H!==G&&!H.sleep&&hyperbolicDistance(H.pos,G.pos)<3){H.alert=Math.max(H.alert,0.7);if(H.state!=='chase'){H.state='search';H.goal=p.slice();H.timer=0;H.scan=null;}}}
+    for(const H of S.guards)if(H!==G&&!H.sleep&&!H.passive&&hyperbolicDistance(H.pos,G.pos)<3){H.alert=Math.max(H.alert,0.7);if(H.state!=='chase'){H.state='search';H.goal=p.slice();H.timer=0;H.scan=null;}}}
   const dP=hyperbolicDistance(G.pos,p);
   switch(G.state){
     case 'patrol':{
@@ -1320,7 +1348,14 @@ function debate(){let i=0,score=0;
 function finale(score){const lem=Object.keys(campaign.lemmas).length,secret=score===STORY.debate.length&&lem>=12;
   const after=score===STORY.debate.length?STORY.debateWin:STORY.debateLose;
   scene(after,()=>{const opts=STORY.choices.filter(c=>!c.secret||secret);
-    choose('vera',STORY.choiceText+(secret?'':'<br><small style="color:var(--muted)">'+(score<STORY.debate.length?'Евклид не убеждён до конца.':'Чтобы начертить ему абсолют, нужно знать больше лемм ('+lem+' из 12).')+'</small>'),opts,k=>ending(opts[k].id,score));});}
+    choose('vera',STORY.choiceText+(secret?'':'<br><small style="color:var(--muted)">'+(score<STORY.debate.length?'Евклид не убеждён до конца.':'Чтобы начертить ему абсолют, нужно знать больше лемм ('+lem+' из 12).')+'</small>'),opts,k=>startEscape(opts[k].id,score));});}
+// стелс-побег после диспута (концепт: «диспут + стелс-побег»)
+function startEscape(id,score){S.escape={id,score};
+  if(id==='straight'){S.abil.lens=false;S.lensOn=false;}
+  for(const G of S.guards){if(G.sleep)continue;
+    if(id==='postulate'&&!G.kassel){G.passive=true;G.state='return';G.alert=0;continue;}
+    G.alert=id==='straight'?0.3:0.5;G.state='search';G.goal=S.A.pos();G.timer=0;G.scan=null;}
+  S.graceT=4.5;ui.obj();scene(STORY.escape[id],()=>{save();toast('Сохранено. Бегите к Воротам');});}
 function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const st=S.stats;
   campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;campaign.ending=id;campaign.endings={...(campaign.endings||{}),[id]:1};saveCampaign();
   const highChaos=campaign.alerts>8||campaign.bodies>3;
@@ -1331,12 +1366,89 @@ function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const s
   <p style="color:var(--muted);font-size:13px">«Пятый Постулат» — игра о геометрии Лобачевского. Все леммы и формулы в ней — настоящие.</p>
   <div class="row"><button class="btn main" data-a="gallery">Портретная галерея</button><button class="btn" data-a="menu">В меню</button></div>`);}
 
+
+// ═══════════════ чертёжные столы (концепт, §12) ═══════════════
+const tbl=document.createElement('div');tbl.id='mtbl';tbl.className='framed';document.body.appendChild(tbl);
+function openTable(kind,onWin){S.dlg=true;aiming=false;try{if(document.pointerLockElement)document.exitPointerLock();}catch(_){}
+  tbl.innerHTML=`<canvas width="900" height="900"></canvas><div class="side"></div>`;tbl.classList.add('on');
+  const cv=tbl.querySelector('canvas'),side=tbl.querySelector('.side');
+  const close=won=>{tbl.classList.remove('on');tbl.innerHTML='';S.dlg=false;lock();if(won)onWin();};
+  (kind==='gap'?puzzleGap:puzzleCirc)(cv,side,close);}
+function boardBG(x,W){x.fillStyle='#0b1d36';x.fillRect(0,0,W,W);x.strokeStyle='rgba(140,190,255,.08)';x.lineWidth=1;
+  for(let i=0;i<=W;i+=30){x.beginPath();x.moveTo(i,0);x.lineTo(i,W);x.stroke();x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke();}}
+// «Щель»: сколько многогранников с данным двугранным углом закрывают ребро
+function puzzleGap(cv,side,close){const stages=[{n:'Прямые додекаэдры Тюрьмы {5,3,4}',a:90},{n:'Кубы Цитадели {4,3,5}',a:72}];let st=0,n=1,lockT=false;
+  const x=cv.getContext('2d'),W=900,C=W/2,R=W*0.36;
+  side.innerHTML=`<div class="ch">Чертёжный стол</div><h4>Замок-сота</h4><p>Это сечение вокруг одного ребра. Каждый клин — многогранник, его угол — двугранный угол. Сложите вокруг ребра столько многогранников, чтобы не осталось ни щели, ни наложения.</p>
+  <p class="stg"></p><p class="sum mono"></p><div class="row"><button class="btn" data-k="-">− многогранник</button><button class="btn main" data-k="+">+ многогранник</button></div><p class="st"></p><div class="row"><button class="btn" data-k="x">Отойти от стола</button></div>`;
+  const draw=()=>{const S0=stages[st],a=S0.a,sum=n*a;boardBG(x,W);
+    for(let i=0;i<n;i++){const a0=(i*a-90)*Math.PI/180,a1=((i+1)*a-90)*Math.PI/180,over=(i+1)*a>360;
+      x.beginPath();x.moveTo(C,C);x.arc(C,C,R,a0,a1);x.closePath();x.fillStyle=over?'rgba(255,90,60,.45)':(i%2?'rgba(80,140,210,.55)':'rgba(120,180,240,.45)');x.fill();
+      x.strokeStyle='rgba(230,240,255,.85)';x.lineWidth=3;x.stroke();
+      const am=(a0+a1)/2;x.fillStyle='#e8f1ff';x.font='500 30px IBM Plex Mono, monospace';x.textAlign='center';x.fillText(a+'°',C+Math.cos(am)*R*0.62,C+Math.sin(am)*R*0.62+10);}
+    if(sum<360){const g0=(sum-90)*Math.PI/180,g1=(270)*Math.PI/180;x.save();x.beginPath();x.moveTo(C,C);x.arc(C,C,R,g0,g1);x.closePath();x.clip();
+      x.strokeStyle='rgba(255,120,90,.7)';x.lineWidth=3;for(let k=-W;k<W;k+=22){x.beginPath();x.moveTo(k,0);x.lineTo(k+W,W);x.stroke();}x.restore();
+      const gm=(g0+g1)/2;x.fillStyle='#ff9a80';x.font='600 34px IBM Plex Sans, sans-serif';x.fillText('щель '+(360-sum)+'°',C+Math.cos(gm)*R*0.6,C+Math.sin(gm)*R*0.6);}
+    x.fillStyle='#d6a35a';x.beginPath();x.arc(C,C,10,0,7);x.fill();x.font='26px IBM Plex Sans';x.fillText('ребро',C,C+44);
+    side.querySelector('.stg').innerHTML=`<b>Этап ${st+1} из ${stages.length}:</b> ${S0.n}, двугранный угол ${a}°`;
+    side.querySelector('.sum').textContent=`${n} × ${a}° = ${sum}°`+(sum<360?` — не хватает ${360-sum}°`:sum>360?` — наложение ${sum-360}°`:' — ровно полный оборот');};
+  side.addEventListener('click',e=>{const k=e.target.closest('[data-k]')?.dataset.k;if(!k||lockT)return;if(k==='x')return close(false);
+    n=clamp(n+(k==='+'?1:-1),1,8);draw();const a=stages[st].a;
+    if(n*a===360){lockT=true;side.querySelector('.st').innerHTML=`<b style="color:#9fdc8a">Ребро закрыто без щели.</b> ${n} × ${a}° = 360°.`+(st===0?' Следующий этап…':' Замок щёлкает.');AU.pick();
+      setTimeout(()=>{lockT=false;if(st+1<stages.length){st++;n=1;side.querySelector('.st').innerHTML='Если бы кубов с углом 72° было четыре, осталась бы щель в 72° (курсовая, п. 6.2).';draw();}else close(true);},1400);}
+    else side.querySelector('.st').textContent=n*a<360?'Между многогранниками пустой клин — в такой соте были бы щели.':'Многогранники налезают друг на друга.';});
+  draw();}
+// «Описание без циркуля»: окружность, орицикл или эквидистанта через три точки (модель Пуанкаре)
+function puzzleCirc(cv,side,close){
+  const x=cv.getContext('2d'),W=900,C=W/2,R=W*0.45;
+  const P=[[-0.42,-0.22],[0.44,-0.18],[0.02,0.34]],found={circle:0,horo:0,equi:0};let prev=null,drag=-1,done=false;
+  const toH=z=>{const r2=z[0]*z[0]+z[1]*z[1],k=1/(1-r2);return [2*z[0]*k,2*z[1]*k,(1+r2)*k];};
+  const ip=(a,b)=>a[0]*b[0]+a[1]*b[1]-a[2]*b[2],sub=(a,b)=>a.map((v,i)=>v-b[i]);
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],-(a[0]*b[1]-a[1]*b[0])];
+  const toZ=X=>[X[0]/(1+X[2]),X[1]/(1+X[2])],px=z=>[C+z[0]*R,C-z[1]*R];
+  side.innerHTML=`<div class="ch">Чертёжный стол Криволинейных</div><h4>Описание без циркуля</h4><p>Церковь учит: через любые три точки проходит окружность. Перетаскивайте вершины треугольника в круге Пуанкаре. Голубые линии — серединные перпендикуляры к сторонам; где они сходятся, там центр.</p>
+  <ul class="tasks"><li data-t="circle">Окружность: перпендикуляры пересекаются внутри</li><li data-t="horo">Орицикл: перпендикуляры сходятся на абсолюте</li><li data-t="equi">Эквидистанта: перпендикуляры расходятся</li></ul><p class="st"></p><div class="row"><button class="btn" data-k="x">Отойти от стола</button></div>`;
+  function iso(f,N,col,dash,lw){const h=2/N,v=[];for(let j=0;j<=N;j++){v.push([]);for(let i=0;i<=N;i++){const z=[-1+i*h,-1+j*h];v[j].push(z[0]*z[0]+z[1]*z[1]<0.997?f(toH(z)):NaN);}}
+    x.strokeStyle=col;x.lineWidth=lw||3;x.setLineDash(dash||[]);x.beginPath();
+    for(let j=0;j<N;j++)for(let i=0;i<N;i++){const a=v[j][i],b=v[j][i+1],c=v[j+1][i+1],d=v[j+1][i];if([a,b,c,d].some(Number.isNaN))continue;
+      const pts=[];const e=(p,q,z1,z2)=>{if((p<0)!==(q<0)){const t=p/(p-q);pts.push([z1[0]+(z2[0]-z1[0])*t,z1[1]+(z2[1]-z1[1])*t]);}};
+      const z00=[-1+i*h,-1+j*h],z10=[z00[0]+h,z00[1]],z11=[z00[0]+h,z00[1]+h],z01=[z00[0],z00[1]+h];
+      e(a,b,z00,z10);e(b,c,z10,z11);e(c,d,z11,z01);e(d,a,z01,z00);
+      for(let k=0;k+1<pts.length;k+=2){const p1=px(pts[k]),p2=px(pts[k+1]);x.moveTo(...p1);x.lineTo(...p2);}}
+    x.stroke();x.setLineDash([]);}
+  function draw(){const H=P.map(toH);boardBG(x,W);
+    x.strokeStyle='#d6a35a';x.lineWidth=4;x.beginPath();x.arc(C,C,R,0,7);x.stroke();
+    const n=[sub(H[0],H[1]),sub(H[1],H[2]),sub(H[2],H[0])];
+    for(const m of n)iso(X=>ip(X,m),110,'rgba(120,200,255,.55)',[10,8],2.5);
+    let c=cross(n[0],n[1]);const q=ip(c,c),rel=q/(c[0]*c[0]+c[1]*c[1]+c[2]*c[2]);
+    const type=rel<-0.02?'circle':rel>0.02?'equi':'horo';
+    if(prev&&prev!==type&&prev!=='horo'&&type!=='horo')found.horo=1; // прошли через орицикл по непрерывности
+    found[type]=1;prev=type;
+    const k=ip(H[0],c);iso(X=>ip(X,c)-k,160,type==='circle'?'#ffe2a0':type==='horo'?'#9fdc8a':'#ff9a80',null,4);
+    if(type==='circle'){if(c[2]<0)c=c.map(v=>-v);const cz=toZ(c.map(v=>v/Math.sqrt(-q)));x.fillStyle='#ffe2a0';x.beginPath();x.arc(...px(cz),8,0,7);x.fill();}
+    else if(type==='horo'){const cc=c[2]<0?c.map(v=>-v):c,z=[cc[0]/cc[2],cc[1]/cc[2]],l=Math.hypot(...z);x.fillStyle='#9fdc8a';x.beginPath();x.arc(...px([z[0]/l,z[1]/l]),10,0,7);x.fill();}
+    else iso(X=>ip(X,c),130,'rgba(255,154,128,.7)',[4,6],2);
+    // стороны треугольника — отрезки геодезических
+    x.strokeStyle='#e8f1ff';x.lineWidth=3.5;
+    for(let s2=0;s2<3;s2++){const A=H[s2],B=H[(s2+1)%3],d=Math.acosh(Math.max(1,-ip(A,B)));x.beginPath();
+      for(let i=0;i<=40;i++){const t=i/40,X=A.map((v,j)=>(Math.sinh((1-t)*d)*v+Math.sinh(t*d)*B[j])/Math.sinh(d)),p=px(toZ(X));i?x.lineTo(...p):x.moveTo(...p);}x.stroke();}
+    P.forEach((z,i)=>{x.fillStyle='#d6a35a';x.beginPath();x.arc(...px(z),13,0,7);x.fill();x.fillStyle='#0b1d36';x.font='600 18px IBM Plex Sans';x.textAlign='center';x.fillText('ABC'[i],...px(z).map((v,j)=>v+(j?6:0)));});
+    const names={circle:'окружность — центр внутри круга',horo:'орицикл — центр на абсолюте',equi:'эквидистанта — у кривой нет центра, есть базовая прямая'};
+    side.querySelectorAll('.tasks li').forEach(li=>li.classList.toggle('done',!!found[li.dataset.t]));
+    const stt=side.querySelector('.st');stt.innerHTML=`Сейчас через A, B, C проходит <b>${names[type]}</b>.`+(Math.abs(rel)<0.08&&type!=='horo'?' Почти орицикл!':'');
+    if(found.circle&&found.horo&&found.equi&&!done){done=true;stt.innerHTML+=`<br><b style="color:#9fdc8a">Пароль верный.</b> Не через любые три точки проходит окружность — и значит, пятый постулат здесь ложен.`;AU.pick();setTimeout(()=>close(true),2600);}}
+  const zOf=e=>{const r=cv.getBoundingClientRect();return [((e.clientX-r.left)/r.width*W-C)/R,-((e.clientY-r.top)/r.height*W-C)/R];};
+  cv.addEventListener('pointerdown',e=>{const z=zOf(e);let best=-1,bd=0.09;P.forEach((p2,i)=>{const d=Math.hypot(p2[0]-z[0],p2[1]-z[1]);if(d<bd){bd=d;best=i;}});drag=best;if(drag>=0)try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+  cv.addEventListener('pointermove',e=>{if(drag<0)return;let z=zOf(e);const l=Math.hypot(...z);if(l>0.93)z=z.map(v=>v*0.93/l);P[drag]=z;draw();});
+  cv.addEventListener('pointerup',()=>drag=-1);
+  side.addEventListener('click',e=>{if(e.target.closest('[data-k=x]'))close(false);});
+  draw();}
 // ═══════════════ рендер и HUD ═══════════════
 function objects(){const out=[];
   for(const G of S.guards){const F=frameAt(G.pos,G.dir,S.A.kind==='plane'?[0,0,1,0]:null);const gr=S.A.lights?S.A.roomOf(G.pos):-1;
     out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,vr:G.kassel?1:G.vr,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
   if(S.decoy)out.push({pos:S.decoy.pos,F:S.decoy.F,kind:10,vr:4,lit:1,light:advancePose(S.decoy.pos,S.A.up(S.decoy.pos),0.5).p});
-  for(const it of visibleItems()){const on=it.kind===5?(it.exit&&!it.exit(S)?0:1):0;
+  for(const it of visibleItems()){const on=it.kind===5?(it.exit&&!it.exit(S)?0:1):it.kind===17?(S.flags[it.puzzle+'Done']?1:0):0;
     out.push({pos:it.pos,F:it.F,kind:it.kind,par:on,vr:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
   return out;}
 function mapMarks(){return LV&&LV.marks?LV.marks(S):[];}
@@ -1403,8 +1515,10 @@ function title(){
   screenShow(`<div class="crest">${emblemSVG()}<div class="wordmark">${FONT.svg('Пятый Постулат',{h:'58px',weight:1.35})}</div><div class="ch">игра о геометрии Лобачевского</div></div>
   <p style="text-align:center">В городе, где Церковь Евклида силой удерживает пространство плоским, архитектор-чертёжница получает Линзу Абсолюта — и видит, что весь мир построен на лжи.</p>
   <div class="row" style="text-align:center">${campaign.unlocked>0||hasSave()?`<button class="btn main" data-a="continue_c">Продолжить${hasSave()?'':': '+CHS[cur].n}</button>`:''}<button class="btn${campaign.unlocked>0||hasSave()?'':' main'}" data-a="new">Новая игра</button>
-  <button class="btn" data-a="chapters">Главы</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="glossary">Глоссарий</button><button class="btn" data-a="gallery">Портретная галерея</button><button class="btn" data-a="history">Как было на самом деле</button><button class="btn" data-a="teacher">Для учителя${campaign.lecturer?' · Лектор':''}</button><button class="btn" data-a="quit">Прогулка по мирам</button></div>`);}
+  <button class="btn" data-a="chapters">Главы</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="records">Записи вычеркнутых</button><button class="btn" data-a="glossary">Глоссарий</button><button class="btn" data-a="gallery">Портретная галерея</button><button class="btn" data-a="history">Как было на самом деле</button><button class="btn" data-a="teacher">Для учителя${campaign.lecturer?' · Лектор':''}</button><button class="btn" data-a="quit">Прогулка по мирам</button></div>`);}
 function backBtn(){return `<div class="row"><button class="btn" data-a="${S&&!S.over&&active&&S.time>0?'resume':'title'}">Назад</button></div>`;}
+function records(){const R=STORY.records,ids=Object.keys(R),got=ids.filter(k=>(campaign.records||{})[k]);
+  screenShow(`<div class="ch">Изъято Церковью</div><h2>Записи вычеркнутых · ${got.length} из ${ids.length}</h2><p>Листы переписи, которые Собор приказал уничтожить. Лист 281 — в Архиве; остальные разбросаны по Городу.</p>${got.length?got.map(k=>`<div class="card2"><b style="font-family:var(--display);font-size:19px;font-weight:400;color:var(--brass)">${R[k].t}</b><p>${R[k].x}</p></div>`).join(''):'<p>Пока ни одной. Ищите белые листы с сургучом.</p>'}${backBtn()}`);}
 function glossary(){screenShow(`<div class="ch">Справочник</div><h2>Глоссарий</h2>${STORY.glossary.map(g=>`<div class="gl"><b>${g.t}</b>${g.ref?`<small>курсовая, ${g.ref}</small>`:''}<p>${g.d}</p></div>`).join('')}${backBtn()}`);}
 function historyScr(){screenShow(`<div class="ch">Историческая справка</div><h2>Как было на самом деле</h2><p>Игра — вымысел, но леммы, даты и цитаты в ней настоящие. Вот где вымысел, а где история.</p>${STORY.history.map(h=>`<div class="card2"><p><i>В игре:</i> ${h.f}</p><p><b>На самом деле:</b> ${h.h}</p></div>`).join('')}${backBtn()}`);}
 function teacher(){screenShow(`<div class="ch">Педагогический слой</div><h2>Для учителя</h2>
@@ -1436,7 +1550,7 @@ function brief(i){const c=CHS[i];
 function pause(){if(!S||S.over||S.dlg)return;S.paused=true;aiming=false;
   screenShow(`<div class="ch">Пауза · ${CH().n}</div><h2>${CH().title}</h2>
   <div class="row"><button class="btn main" data-a="resume">Продолжить</button><button class="btn" data-a="save">Сохранить <span class="mono">(K)</span></button>
-  ${hasSave()?'<button class="btn" data-a="load">Загрузить <span class="mono">(L)</span></button>':''}<button class="btn" data-a="restart">Заново</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="sound">Звук: ${AU.on?'вкл':'выкл'}</button><button class="btn" data-a="menu">В меню</button></div>
+  ${hasSave()?'<button class="btn" data-a="load">Загрузить <span class="mono">(L)</span></button>':''}<button class="btn" data-a="restart">Заново</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="records">Записи</button><button class="btn" data-a="sound">Звук: ${AU.on?'вкл':'выкл'}</button><button class="btn" data-a="menu">В меню</button></div>
   ${controlsHTML(S.ch)}`);}
 function start(i){S=fresh(i);begin();say('start');LV.start&&LV.start();}
 function act(a,ds){AU.init();
@@ -1458,11 +1572,12 @@ function act(a,ds){AU.init();
   else if(a==='check'){const ck=STORY.checks[CH().id],ok=+ds.i===ck.ok,e=screen.querySelector('.ce');e.hidden=false;e.innerHTML=(ok?'<b style="color:#9fdc8a">Верно.</b> ':'<b style="color:#ff8a6a">Не совсем.</b> ')+ck.e;
     screen.querySelectorAll('[data-a=check]').forEach(b=>{b.disabled=true;if(+b.dataset.i===ck.ok)b.classList.add('main');});if(ok){campaign.checks={...(campaign.checks||{}),[CH().id]:1};saveCampaign();}}
   else if(a==='glossary')glossary();
+  else if(a==='records')records();
   else if(a==='history')historyScr();
   else if(a==='teacher')teacher();
   else if(a==='lect'){campaign.lecturer=!campaign.lecturer;saveCampaign();teacher();}
   else if(a==='print'){window.print();}}
-function begin(){S.paused=false;S.over=false;S.room=-1;screenHide();ui.obj();$('mplaque').style.display='none';$('msub').style.opacity=0;
+function begin(){S.paused=false;S.over=false;S.room=-1;$('mroom').textContent='';screenHide();ui.obj();$('mplaque').style.display='none';$('msub').style.opacity=0;
   document.getElementById('mapwrap').hidden=S.A.kind!=='plane';document.getElementById('mapwrap').style.visibility=S.A.kind==='plane'?'visible':'hidden';lock();}
 function open(){const bad=['rooms','house','plane','flat'].filter(k=>!PROG[k]);if(bad.length){alert('Шейдеры не собрались: '+bad.join(', ')+'\n'+(PROG[bad[0]+'_err']||'').toString().slice(0,400));return;}
   active=true;document.body.classList.add('mission');hudEl.classList.add('on');
@@ -1475,7 +1590,8 @@ function exit(){active=false;aiming=false;mapOn=false;mapC.classList.remove('on'
 
 // ───────── ввод ─────────
 function key(e,down){if(!active)return false;const k=e.code;
-  if(S&&S.dlg){if(down&&(k==='Space'||k==='Enter'||k==='KeyF')&&dlg._next){e.preventDefault();dlg._next();}return true;}
+  if(S&&S.dlg){if(tbl.classList.contains('on')){if(down&&k==='Escape'){tbl.querySelector('[data-k=x]')?.click();}return true;}
+    if(down&&(k==='Space'||k==='Enter'||k==='KeyF')&&dlg._next){e.preventDefault();dlg._next();}return true;}
   if(screen.classList.contains('on')||!S)return /^(Digit\d|KeyR|KeyH)$/.test(k);
   if(!down){if(k==='Tab'){mapOn=false;mapC.classList.remove('on');}
     if(k==='KeyB'&&aiming&&aimMode==='blink'){aiming=false;doBlink();}if(k==='KeyG'&&aiming&&aimMode==='decoy'){aiming=false;doDecoy();}return false;}
@@ -1510,6 +1626,6 @@ addEventListener('keydown',e=>{if(!active&&e.code==='Digit7'&&!(e.target.tagName
 if(location.hash==='#archive'||location.hash==='#game')setTimeout(open,0);
 
 return {get active(){return active;},frame,key,open,exit,
-  _:{LEVELS,get S(){return S;},set S(v){S=v;},fresh,update,start,act,campaign:()=>campaign,PROG,frameAt,aimTarget,objects,interactTarget,interact,debate}};
+  _:{LEVELS,get S(){return S;},set S(v){S=v;},fresh,update,start,act,campaign:()=>campaign,PROG,frameAt,aimTarget,objects,interactTarget,interact,debate,startEscape,openTable}};
 })();
 window.MISSION=GAME;window.GAME=GAME;
