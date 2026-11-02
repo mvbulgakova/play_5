@@ -31,6 +31,7 @@ const footOf=p=>{const h=Math.asinh(p[2]),c=Math.cosh(h);return normalizePoint([
 // ───────── общий GLSL: фигуры и материалы ─────────
 const OBJ_SDF=`
 uniform float uTime;
+float gPar;
 mat2 rot(float a){ float c=cos(a), s=sin(a); return mat2(c,-s,s,c); }
 float smin(float a,float b,float k){ float h=clamp(.5+.5*(b-a)/k,0.,1.); return mix(b,a,h)-k*h*(1.-h); }
 float sdSph(vec3 p,float r){ return length(p)-r; }
@@ -43,8 +44,12 @@ float sdRCone(vec3 p,float r1,float r2,float h){ vec2 q=vec2(length(p.xz),p.y); 
   if(k<0.) return length(q)-r1; if(k>a*h) return length(q-vec2(0.,h))-r2; return dot(q,vec2(a,b))-r1; }
 // Фигура в мантии: страж, Кассель, Сестра Орицикла, Бернхард, Евклид, отражение Веры
 float figureSDF(vec3 q,float sl,int vr,out int m){
-  if(sl>.5){ q.xy=rot(1.1)*q.xy; }
-  q.y+=0.006*sin(uTime*1.7+float(vr));
+  if(sl>.5){ q.xy=rot(1.1)*q.xy; q.y+=0.03; }
+  else{
+    q.y+=0.006*sin(uTime*1.7+float(vr));
+    q.xy=rot(0.05*sin(uTime*2.6+float(vr)*1.3))*q.xy;          // покачивание
+    q.yz=rot(-0.32*clamp(gPar,0.,1.))*q.yz;                     // подаётся вперёд, когда насторожен
+  }
   float ang=atan(q.x,q.z);
   float robe=sdRCone(q-vec3(0,-0.13,0),0.008,0.048,0.155);
   robe+=0.0028*sin(ang*7.+q.y*40.+uTime*0.8)*smoothstep(0.02,-0.12,q.y);
@@ -52,17 +57,18 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
   float d=smin(robe,mant,0.02); m=1;
   float hood=max(sdSph(q-vec3(0,0.082,-0.006),0.040),-(q.z-0.016));
   hood=max(hood,-sdSph(q-vec3(0,0.08,0.002),0.034));
-  if(vr==3) hood=1.;                                   // Бернхард — без капюшона
+  if(vr==3||vr==6) hood=1.;                            // Бернхард и тюремщик — без капюшона
+  if(vr==7) hood=min(hood,sdRCone(q-vec3(0,0.10,-0.012),0.03,0.003,0.06)); // остроконечный капюшон
   if(vr==5){ hood=min(sdRCone(q-vec3(0,0.09,-0.004),0.03,0.012,0.07),hood); } // митра Архипрелата
   if(hood<d){d=hood;m=5;}
   float head=sdSph(q-vec3(0,0.078,-0.002),0.031); if(head<d){d=head;m=5;}
   float mask=sdEll(q-vec3(0,0.076,0.017),vec3(0.024,0.030,0.016)); if(mask<d){d=mask;m=3;}
-  if(vr<=1){
+  if(vr<=1||vr>=6){
     vec3 e=q-vec3(0,0.084,0.031);
     float ring=sdTorZ(e,0.011,0.0032); if(ring<d){d=ring;m=2;}
     float lens=sdEll(e,vec3(0.009,0.009,0.004)); if(lens<d){d=lens;m=4;}
   }
-  if(vr==0||vr==1){
+  if(vr==0||vr==1||vr==8){
     float c1=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.075,-0.11,0.03),0.0036);
     float c2=sdCaps(q,vec3(0.058,0.045,0.01),vec3(0.042,-0.11,0.045),0.0036);
     float hg=sdSph(q-vec3(0.058,0.048,0.01),0.008);
@@ -75,6 +81,13 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
     if(min(str,bob)<d){d=min(str,bob);m=2;}
   }
   if(vr==3){ float bh=sdEll(q-vec3(0,0.105,-0.004),vec3(0.03,0.012,0.028)); if(bh<d){d=bh;m=5;} }
+  if(vr==6){ float helm=max(sdSph(q-vec3(0,0.085,-0.004),0.037),-(q.y-0.075)); float brim=sdTorZ((q-vec3(0,0.077,-0.004)).xzy,0.036,0.004);
+    float hm=min(helm,brim); if(hm<d){d=hm;m=2;}
+    float keys=sdTorZ((q-vec3(-0.05,-0.02,0.02)).zyx,0.014,0.0025); if(keys<d){d=keys;m=2;} }
+  if(vr==7){ float pole=sdCaps(q,vec3(0.06,0.05,0.03),vec3(0.07,0.13,0.05),0.0028); float lan=sdSph(q-vec3(0.07,0.145,0.05),0.014);
+    if(pole<d){d=pole;m=2;} if(lan<d){d=lan;m=15;} }
+  if(vr==8){ float brim=sdEll(q-vec3(0,0.11,0),vec3(0.07,0.004,0.07)); float crown=sdEll(q-vec3(0,0.12,0),vec3(0.03,0.015,0.03)); if(min(brim,crown)<d){d=min(brim,crown);m=5;} }
+  if(vr==9){ float halo=sdTorZ(q-vec3(0,0.085,-0.045),0.045,0.003); if(halo<d){d=halo;m=2;} }
   float pa=sdEll(vec3(abs(q.x),q.y,q.z)-vec3(0.05,0.042,0.0),vec3(0.022,0.012,0.026)); if(pa<d){d=pa;m=2;}
   return d;
 }
@@ -105,19 +118,22 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
   if(kind==15){ float ob=max(sdBox(q,vec3(0.026,0.09,0.026)),dot(vec3(abs(q.x),q.y,abs(q.z)),normalize(vec3(1,0.55,1)))-0.072);
     float band=sdBox(q-vec3(0,0.03,0),vec3(0.0275,0.008,0.0275)); m=14; if(band<ob+0.001){m=13;} return min(ob,band); }
   if(kind==16){ float rr=length(q.xy); float ring=sdTorZ(q,0.40,0.012);
-    float bx=abs(mod(q.x+0.05,0.1)-0.05), by=abs(mod(q.y+0.05,0.1)-0.05);
-    float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.006,rr-0.40);
+    float bx=abs(mod(q.x+0.065,0.13)-0.065), by=abs(mod(q.y+0.065,0.13)-0.065);
+    float bars=max(min(length(vec2(bx,q.z)),length(vec2(by,q.z)))-0.012,rr-0.40);
     m=2; return min(ring,bars); }
   m=0; return sdSph(q,0.03);
 }
 // материалы объектов: m — номер материала фигуры, vr — вариант персонажа
 void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out vec3 base,out float metal,out float rough,out vec3 emis){
   base=vec3(0.5); metal=0.; rough=0.6; emis=vec3(0.);
-  vec3 robe= vr==1? vec3(0.30,0.035,0.04) : vr==2? vec3(0.05,0.13,0.09) : vr==3? vec3(0.20,0.12,0.07) : vr==5? vec3(0.80,0.78,0.72) : vec3(0.07,0.08,0.13);
+  vec3 robe= vr==1? vec3(0.30,0.035,0.04) : vr==2? vec3(0.05,0.13,0.09) : vr==3? vec3(0.20,0.12,0.07) : vr==5? vec3(0.80,0.78,0.72)
+    : vr==6? vec3(0.17,0.17,0.19) : vr==7? vec3(0.09,0.08,0.16) : vr==8? vec3(0.24,0.18,0.09) : vr==9? vec3(0.86,0.84,0.79) : vec3(0.07,0.08,0.13);
   if(mm==1){ base=robe; rough=0.8; if(sl<.5&&abs(q.y-0.012)<0.005){ brass(X,base,rough); metal=1.; } }
   else if(mm==5){ base=robe*0.65; rough=0.85; if(vr==5){ brass(X,base,rough); metal=1.; } }
   else if(mm==2){ brass(X,base,rough); metal=1.; if(vr==1){ base*=vec3(1.05,0.85,0.75); } }
-  else if(mm==3){ base=vec3(0.86,0.83,0.77)*(0.9+0.15*fbm(q*300.)); rough=0.32; if(vr==3) base=vec3(0.62,0.45,0.34); }
+  else if(mm==3){ base=vec3(0.86,0.83,0.77)*(0.9+0.15*fbm(q*300.)); rough=0.32; if(vr==3) base=vec3(0.62,0.45,0.34);
+    if(vr==6){ base=vec3(0.30,0.30,0.32); metal=1.; rough=0.45; } if(vr==9){ brass(X,base,rough); metal=1.; } }
+  else if(mm==15){ base=vec3(0.1); emis=vec3(1.0,0.78,0.45)*(3.0+0.6*sin(uTime*9.)); }
   else if(mm==4){ base=vec3(0.02); rough=0.1; emis= sl>.5? vec3(0.) : mix(vec3(1.,0.72,0.28),vec3(1.,0.12,0.05),par)*(3.5+1.5*sin(uTime*6.)*par); }
   else if(mm==6){ base=vec3(0.05,0.08,0.12); rough=0.05; emis=vec3(0.25,0.55,1.0)*(0.5+2.2*pow(1.-f,3.)); }
   else if(mm==7){ base=vec3(0.45,0.05,0.04); rough=0.35; }
@@ -150,7 +166,7 @@ void traceObjects(vec4 p0, vec4 v0){
     float sq=sqrt(disc), u1=(k-sq)/(A+B), u2=(k+sq)/(A+B);
     if(u2<=1.) continue;
     float t0=u1>1.? log(u1) : 0., t1=log(u2);
-    int kind=okind(j); float sl=osl(j); int vr=ovar(j);
+    int kind=okind(j); float sl=osl(j); int vr=ovar(j); gPar=uOK[j].z;
     if(kind==1){ if(sl<.5) gTG=min(gTG,t0); } else if(kind!=16) gTI=min(gTI,t0);
     if(t0>=gTO) continue;
     float tt=t0;
@@ -163,7 +179,7 @@ void traceObjects(vec4 p0, vec4 v0){
   }
 }
 vec3 shadeObject(vec4 p0, vec4 v0, vec3 lampC){
-  int j=gIO; int kind=okind(j); float sl=osl(j), litO=olit(j), par=uOK[j].z; int vr=ovar(j);
+  int j=gIO; int kind=okind(j); float sl=osl(j), litO=olit(j), par=uOK[j].z; int vr=ovar(j); gPar=par;
   float tO=gTO; vec4 X=cosh(tO)*p0+sinh(tO)*v0, vX=sinh(tO)*p0+cosh(tO)*v0;
   vec3 q=vec3(md(X,uOR[j]),md(X,uOU[j]),md(X,uOD[j]));
   int mm; const vec2 h=vec2(1.,-1.)*0.0006;
@@ -469,7 +485,7 @@ void main(){
   }
   vec4 up=tp(vec4(0,0,1,0),p);
   float sv=md(v,up);
-  vec3 sky=mix(vec3(0.42,0.40,0.48),vec3(0.06,0.08,0.18),smoothstep(-0.1,0.9,sv));
+  vec3 sky=mix(vec3(0.62,0.44,0.36),vec3(0.05,0.07,0.17),smoothstep(-0.15,0.7,sv));
   sky+=vec3(1.0,0.75,0.45)*pow(max(sv*0.5+0.5,0.),40.)*0.0;
   vec3 col=sky; float tHit=1e9;
   vec3 lamp=vec3(1.0,0.80,0.55);
@@ -523,7 +539,7 @@ void main(){
   for(int j=0;j<NOE;j++){ if(j>=uNO) break;
     vec3 C=uO[j].xyz; float R=uOK[j].y; vec3 oc=p0-C; float b=dot(oc,v), c=dot(oc,oc)-R*R, h=b*b-c; if(h<0.) continue;
     h=sqrt(h); float t0=max(-b-h,0.), t1=-b+h; if(t1<0.||t0>=tO) continue;
-    int kind=int(uOK[j].x+.5); float tt=t0;
+    int kind=int(uOK[j].x+.5); float tt=t0; gPar=0.;
     for(int s=0;s<48;s++){ vec3 X=p0+v*tt-C; vec3 q=vec3(dot(X,uOR[j].xyz),dot(X,uOU[j].xyz),dot(X,uOD[j].xyz));
       int m; float dd=objSDF(kind,q,0.,0,m); if(dd<2.5e-4){ if(tt<tO){tO=tt;iO=j;} break; } tt+=dd; if(tt>t1) break; }
   }
@@ -551,7 +567,7 @@ void main(){
     if(id==3) sc=lamp*2.4;
     else{ vec3 base; float rough; brass(vec4(p,1.),base,rough); if(id==2){ base=vec3(0.82,0.83,0.86); rough=0.2; }
       float dif=max(dot(n,L),0.); vec3 hv=normalize(L-v); float sp=pow(max(dot(n,hv),0.),mix(80.,10.,rough));
-      sc=base*(0.05+dif*att*lamp*0.6)+sp*att*lamp*base*0.6+base*vec3(0.04,0.05,0.08); }
+      base*=0.55; sc=base*(0.03+dif*att*lamp*0.32)+sp*att*lamp*base*0.3+base*vec3(0.03,0.04,0.07); }
     col=mix(FOG,sc,exp(-t/uFog));
   } else if(ohit){
     tHit=tO; vec3 X=p0+v*tO; int j=iO; int kind=int(uOK[j].x+.5); vec3 C=uO[j].xyz;
@@ -870,8 +886,8 @@ const LEVELS={
       {id:'sh0',kind:7,pos:P('bath',[0.25,0.2,0.1])},{id:'sh1',kind:7,pos:P('yard',[-0.2,-0.25,0.15])},
       {id:'exit',kind:5,pos:advancePose(lk,dirTo(lk,yd),-0.42).p,face:yd,exit:S=>S.got.lens}];
     const gd=[{name:'Циркулятор Кассель',route:A.route(['yard','post','ev','post'],1.8),kassel:true},
-      {name:'Тюремщик Фавст',route:A.route(['cell','gal1','ring','well'])},{name:'Тюремщик Лука',route:A.route(['gal1','gal2','post','cell'])},
-      {name:'Тюремщик Ерм',route:A.route(['lock','yard'],2.5)}];
+      {name:'Тюремщик Фавст',vr:6,route:A.route(['cell','gal1','ring','well'])},{name:'Тюремщик Лука',vr:6,route:A.route(['gal1','gal2','post','cell'])},
+      {name:'Тюремщик Ерм',vr:6,route:A.route(['lock','yard'],2.5)}];
     return {A,items:it,guards:gd,
       objectives:S=>[{t:'Вернуть Линзу — Кладовая улик за постом Касселя',done:S.got.lens},{t:'Уйти через Шлюз',locked:!S.got.lens}],
       abil:{blink:true,lens:false,decoy:false}};},
@@ -881,9 +897,9 @@ const LEVELS={
     const it=[{id:'wachter',kind:2,pos:P(0.7,0.6,1,0.4),lemma:'wachter'},{id:'horocycle',kind:2,pos:P(0.5,0.85,2,0.4),lemma:'horocycle'},
       {id:'minkowski',kind:2,pos:P(1.5,1.5,0,0.35),lemma:'minkowski'},{id:'sh0',kind:7,pos:P(0.3,0.7,1,0.3)},{id:'sh1',kind:7,pos:P(0.8,0.3,2,0.3)},
       {id:'oricycla',kind:8,vr:2,pos:P(1.5,0.5,3,0.33),name:'Сестра Орицикла',talk:true}];
-    const gd=[{name:'Надзиратель Аммоний',route:A.route([[0.55,0.45,1],[0.92,0.45,1],[0.92,0.92,1],[0.55,0.92,1]])},
-      {name:'Надзиратель Дидим',route:A.route([[0.08,0.5,2],[0.9,0.5,2],[0.9,0.12,2]],1.6)},
-      {name:'Надзиратель Филон',route:A.route([[1.2,0.2,2],[1.8,0.8,2]],2)}];
+    const gd=[{name:'Надзиратель Аммоний',vr:7,route:A.route([[0.55,0.45,1],[0.92,0.45,1],[0.92,0.92,1],[0.55,0.92,1]])},
+      {name:'Надзиратель Дидим',vr:7,route:A.route([[0.08,0.5,2],[0.9,0.5,2],[0.9,0.12,2]],1.6)},
+      {name:'Надзиратель Филон',vr:7,route:A.route([[1.2,0.2,2],[1.8,0.8,2]],2)}];
     return {A,items:it,guards:gd,
       objectives:S=>[{t:'Подняться на третий этаж',done:(S.room-100)>=3},{t:'Найти Сестру Орициклу',done:S.got.oricycla}],
       onRoom(r){if(r-100===2)say('floor2');},
@@ -904,7 +920,7 @@ const LEVELS={
       {id:'bernhard',kind:8,vr:3,pos:bern,name:'Бернхард',talk:true,cond:S=>S.got.st0&&S.got.st1&&S.got.st2},
       {id:'exit',kind:5,pos:gate,face:bern,exit:S=>S.got.bernhard,cond:S=>S.got.bernhard}];
     const gd=[{name:'Циркулятор Кассель',route:A.route([[2.2,60],[3.0,100],[2.6,150],[2.0,115]],1.6),kassel:true},
-      {name:'Циркулятор Агафон',route:A.route([[2.5,250],[2.8,300],[2.2,340]])},{name:'Циркулятор Мина',route:A.route([[2.3,185],[2.9,215]],2)}];
+      {name:'Циркулятор Агафон',vr:8,route:A.route([[2.5,250],[2.8,300],[2.2,340]])},{name:'Циркулятор Мина',vr:8,route:A.route([[2.3,185],[2.9,215]],2)}];
     return {A,items:it,guards:gd,
       objectives:S=>{const n=['st0','st1','st2'].filter(k=>S.got[k]).length;return [{t:'Найти межевые камни Эллиптиков ('+n+'/3)',done:n===3},
         {t:'Встретить Бернхарда',done:S.got.bernhard,locked:n<3},{t:'Войти в ворота Цитадели',locked:!S.got.bernhard}];},
@@ -928,8 +944,8 @@ const LEVELS={
       {id:'grille',kind:16,pos:A.faceCenter('gate','sanct'),face:sc,inert:true},
       {id:'machine',kind:9,pos:mach,name:'Главная Машина Прямизны',talk:true,rad:0.42},
       {id:'euclid',kind:8,vr:5,pos:advancePose(mach,perpAt(mach,dirTo(mach,sc)),0.28).p,face:gt,inert:true}];
-    const gd=[{name:'Страж Нефа Варсонофий',route:A.route(['nave','cloi','scri','cloi'])},{name:'Страж Реликвий Поликарп',route:A.route(['nave','reli','crypt','reli'])},
-      {name:'Страж Святилища Евлогий',route:A.route(['choir','sanct'],2.4)},{name:'Циркулятор Кассель',route:A.route(['stair','choir'],2.2),kassel:true}];
+    const gd=[{name:'Страж Нефа Варсонофий',vr:9,route:A.route(['nave','cloi','scri','cloi'])},{name:'Страж Реликвий Поликарп',vr:9,route:A.route(['nave','reli','crypt','reli'])},
+      {name:'Страж Святилища Евлогий',vr:9,route:A.route(['choir','sanct'],2.4)},{name:'Циркулятор Кассель',route:A.route(['stair','choir'],2.2),kassel:true}];
     return {A,items:it,guards:gd,
       objectives:S=>[{t:'Обойти ребро и попасть в Святилище',done:S.room===A.RI('sanct')||S.got.machine},{t:'Подойти к Главной Машине Прямизны',done:S.got.machine}],
       onRoom(r){if(r===A.RI('choir'))say('near');},
@@ -940,7 +956,7 @@ const LEVELS={
 // ═══════════════ стражи ═══════════════
 const FOV=80*Math.PI/180,VIEW=4.5,RATE=3.0,CATCH=0.30;
 class Guard{
-  constructor(sp,idx){this.idx=idx;this.name=sp.name;this.kassel=!!sp.kassel;this.route=sp.route;this.wp=1%sp.route.length;
+  constructor(sp,idx){this.idx=idx;this.name=sp.name;this.kassel=!!sp.kassel;this.vr=sp.vr||0;this.route=sp.route;this.wp=1%sp.route.length;
     this.pos=sp.route[0].p.slice();this.dir=dirTo(this.pos,sp.route[this.wp].p);if(!(md(this.dir,this.dir)>0.5))this.dir=perpAt(this.pos,[1,0,0,0]);
     this.state='patrol';this.alert=0;this.sleep=false;this.timer=0;this.wait=0;this.goal=null;this.lastSeen=null;
     this.seenAgo=99;this.found=false;this.scan=null;this.sees=0;this.barkT=0;
@@ -1016,7 +1032,8 @@ const css=`
 #mscreen .card{width:min(680px,100%);max-height:calc(100vh - 32px);overflow:auto;background:radial-gradient(ellipse at top,#1c2140,#0c0f1c 70%);padding:16px 22px;line-height:1.55;box-shadow:0 20px 80px rgba(0,0,0,.6)}
 #mscreen .crest{display:flex;flex-direction:column;align-items:center;text-align:center;margin:4px 0 14px}
 #mscreen .crest svg{width:96px;height:96px;filter:drop-shadow(0 0 14px rgba(214,163,90,.35))}
-#mscreen .wordmark{font-family:var(--display);font-size:50px;line-height:1;letter-spacing:.06em;text-transform:uppercase;margin-top:10px;background:linear-gradient(180deg,#f6dfab,#d6a35a 55%,#8a5f2c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 rgba(0,0,0,.6))}
+#mscreen .wordmark{margin-top:12px;line-height:0;max-width:100%}#mscreen .wordmark svg{max-width:100%}
+#mscreen .fxl{display:block;margin:2px auto 0;line-height:0}
 #mscreen .ch{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
 #mscreen .crest .ch{margin-top:8px}
 #mscreen h2{font-family:var(--display);font-size:44px;line-height:1.05;margin:4px 0 12px;font-weight:400}
@@ -1067,6 +1084,16 @@ const css=`
 #mtoast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:6px 12px;opacity:0;transition:opacity .4s}
 #mmap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100vw - 32px));aspect-ratio:1;background:rgba(8,12,26,.92);border:1px solid var(--brass);border-radius:50%;display:none;pointer-events:none;z-index:4}
 #mmap.on{display:block}
+@keyframes p5draw{to{stroke-dashoffset:0}}
+@keyframes p5in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes p5fade{from{opacity:0}to{opacity:1}}
+@keyframes p5pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.25)}}
+#mtitle .fx path,#mscreen .wordmark .fx path,#mscreen .fxl .fx path{stroke-dasharray:64;stroke-dashoffset:64;animation:p5draw 1.6s cubic-bezier(.4,.1,.2,1) forwards}
+#mscreen.on .card{animation:p5in .45s ease both}
+#mdlg.on{animation:p5in .35s ease both}#mdlg.on .tx{animation:p5fade .5s ease both}
+#msub .portrait{animation:p5fade .6s ease both}
+#mind .gi.chase{animation:p5pulse .5s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#mtitle .fx path,#mscreen .fx path{animation:none;stroke-dashoffset:0}#mscreen.on .card,#mdlg.on{animation:none}}
 @media (pointer:coarse){#mtouch{display:flex}#mpause{display:block}#mbar{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
 @media (max-width:760px){#mobj .rn{font-size:18px}#mtitle{font-size:26px}#msub .tx{font-size:14px}#msub{bottom:calc(170px + env(safe-area-inset-bottom,0px))}#mplaque{top:auto;bottom:calc(230px + env(safe-area-inset-bottom,0px))}#mscreen h2{font-size:28px}#mdlg .portrait{width:64px;height:77px}#mdlg .tx{font-size:15px}}
 `;
@@ -1270,7 +1297,7 @@ function completeChapter(){if(S.over)return;S.over=true;AU.win();
   <div class="stats"><span>Время</span><span>${tm}</span>${S.guards.length?`<span>Тревоги</span><span>${st.alerts}</span><span>Усыплено стражей</span><span>${st.sleeps}</span><span>Найдено спящих</span><span>${st.bodies}</span>`:''}
   <span>Леммы главы</span><span>${lg} / ${lem.length}</span><span>Леммы всего</span><span>${Object.keys(campaign.lemmas).length} / ${Object.keys(STORY.lemmas).length}</span></div>
   <div class="row">${nx?`<button class="btn main" data-a="next">${nx.n}: ${nx.title}</button>`:''}<button class="btn" data-a="restart">Переиграть главу</button><button class="btn" data-a="menu">В меню</button></div>`);}
-function roomTitle(n){if(LV.roomTitles===false)return;const e=$('mtitle');e.innerHTML=`<small>${CH().title}</small>${n}<i></i>`;e.style.opacity=1;clearTimeout(roomTitle.t);roomTitle.t=setTimeout(()=>e.style.opacity=0,2200);}
+function roomTitle(n){if(LV.roomTitles===false)return;const e=$('mtitle');e.innerHTML=`<small>${CH().title}</small>${FONT.svg(n,{h:'50px'})}<i></i>`;e.style.opacity=1;clearTimeout(roomTitle.t);roomTitle.t=setTimeout(()=>e.style.opacity=0,2200);}
 
 // ───────── диспут и концовки ─────────
 function debate(){let i=0,score=0;
@@ -1284,7 +1311,7 @@ function finale(score){const lem=Object.keys(campaign.lemmas).length,secret=scor
 function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const st=S.stats;
   campaign.alerts+=st.alerts;campaign.sleeps+=st.sleeps;campaign.bodies+=st.bodies;campaign.ending=id;campaign.endings={...(campaign.endings||{}),[id]:1};saveCampaign();
   const highChaos=campaign.alerts>8||campaign.bodies>3;
-  screenShow(`<div class="crest">${emblemSVG()}<div class="ch">Эпилог · концовка</div><h2>${E.t}</h2></div>
+  screenShow(`<div class="crest">${emblemSVG()}<div class="ch">Эпилог · концовка</div><span class="fxl">${FONT.svg(E.t,{h:'54px'})}</span></div>
   ${E.x.map(x=>`<p>${x}</p>`).join('')}${highChaos?`<p style="color:var(--muted)">${E.chaos}</p>`:''}
   <div class="q">${STORY.epilogueQuote}</div>
   <div class="stats"><span>Тревоги за кампанию</span><span>${campaign.alerts}</span><span>Усыплено стражей</span><span>${campaign.sleeps}</span><span>Леммы</span><span>${Object.keys(campaign.lemmas).length} / ${Object.keys(STORY.lemmas).length}</span><span>Доводы в диспуте</span><span>${score} / ${STORY.debate.length}</span><span>Открыто концовок</span><span>${Object.keys(campaign.endings).length} / 3</span></div>
@@ -1294,13 +1321,14 @@ function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const s
 // ═══════════════ рендер и HUD ═══════════════
 function objects(){const out=[];
   for(const G of S.guards){const F=frameAt(G.pos,G.dir,S.A.kind==='plane'?[0,0,1,0]:null);const gr=S.A.lights?S.A.roomOf(G.pos):-1;
-    out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,vr:G.kassel?1:0,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
+    out.push({pos:G.pos,F,kind:1,par:G.state==='chase'?1:G.alert*0.6,sl:G.sleep,vr:G.kassel?1:G.vr,lit:S.A.lights?(gr>=0&&S.lit[gr]):1,light:S.A.lights&&gr>=0?S.A.ROOMS[gr].c:advancePose(G.pos,S.A.up(G.pos),0.55).p});}
   if(S.decoy)out.push({pos:S.decoy.pos,F:S.decoy.F,kind:10,vr:4,lit:1,light:advancePose(S.decoy.pos,S.A.up(S.decoy.pos),0.5).p});
   for(const it of visibleItems()){const on=it.kind===5?(it.exit&&!it.exit(S)?0:1):0;
     out.push({pos:it.pos,F:it.F,kind:it.kind,par:on,vr:it.vr||0,lit:S.A.lights?(it.room>=0&&S.lit[it.room]):1,light:it.light});}
   return out;}
 function mapMarks(){return LV&&LV.marks?LV.marks(S):[];}
-function render(now){const SC=sceneBegin();S.A.render(SC,now,objects());if(typeof POST!=='undefined')POST.cfg.expo=S.A.kind==='plane'?0.85:1;sceneEnd(SC,now);}
+const EXPO={prologue:0.5,ch1:1,ch2:0.62,ch3:0.55,ch4:0.62,ch5:0.7};
+function render(now){const SC=sceneBegin();S.A.render(SC,now,objects());if(typeof POST!=='undefined')POST.cfg.expo=EXPO[CH().id]??1;sceneEnd(SC,now);}
 const ui={obj(){const L=$('mlist');if(!L||!S)return;$('mchap').textContent=CH().n+' · '+CH().title;
     L.innerHTML=LV.objectives(S).map(o=>`<li class="${o.done?'done':o.locked?'locked':''}">${o.t}</li>`).join('');
     $('ab-blink').style.display=S.abil.blink?'':'none';$('ab-lens').classList.toggle('off',!S.abil.lens);$('ab-decoy').classList.toggle('off',!S.abil.decoy);}};
@@ -1350,7 +1378,7 @@ function controlsHTML(ch){const c=CHS[ch];const fl=c.engine==='flat';
   <b>F</b><span>${fl?'снять показания, взять предмет':'усыпить стража со спины, взять предмет, погасить лампу'}</span>${c.engine==='rooms'?'<b>Tab</b><span>планшет-карта</span>':''}<b>K / L</b><span>сохранить / загрузить</span><b>Esc</b><span>пауза</span></div>`;}
 function title(){
   const cur=Math.min(campaign.unlocked,CHS.length-1);
-  screenShow(`<div class="crest">${emblemSVG()}<div class="wordmark">Пятый Постулат</div><div class="ch">игра о геометрии Лобачевского</div></div>
+  screenShow(`<div class="crest">${emblemSVG()}<div class="wordmark">${FONT.svg('Пятый Постулат',{h:'58px',weight:1.35})}</div><div class="ch">игра о геометрии Лобачевского</div></div>
   <p style="text-align:center">В городе, где Церковь Евклида силой удерживает пространство плоским, архитектор-чертёжница получает Линзу Абсолюта — и видит, что весь мир построен на лжи.</p>
   <div class="row" style="text-align:center">${campaign.unlocked>0||hasSave()?`<button class="btn main" data-a="continue_c">Продолжить${hasSave()?'':': '+CHS[cur].n}</button>`:''}<button class="btn${campaign.unlocked>0||hasSave()?'':' main'}" data-a="new">Новая игра</button>
   <button class="btn" data-a="chapters">Главы</button><button class="btn" data-a="lemmas">Леммы</button><button class="btn" data-a="gallery">Портретная галерея</button><button class="btn" data-a="quit">Прогулка по мирам</button></div>`);}
@@ -1371,7 +1399,7 @@ function gallery(){const P=PORTRAITS.list;const hist=new Set(Object.values(STORY
   <div class="gallery">${[...hist].map(id=>{const o=owned.has(id);return `<figure class="${o?'':'lock'}">${PORTRAITS.svg(id,'')}<figcaption><b>${o?P[id].name:'???'}</b><span>${o?P[id].sub:'найдите лемму'}</span></figcaption></figure>`;}).join('')}</div>
   <div class="row"><button class="btn" data-a="title">Назад</button></div>`);}
 function brief(i){const c=CHS[i];
-  screenShow(`<div class="crest">${i===0?emblemSVG():''}<div class="ch">${c.n}</div><h2>${c.title}</h2></div>${c.brief.map(x=>`<p>${x}</p>`).join('')}
+  screenShow(`<div class="crest">${i===0?emblemSVG():''}<span class="fxl">${FONT.svg(c.n,{h:'30px'})}</span><h2>${c.title}</h2></div>${c.brief.map(x=>`<p>${x}</p>`).join('')}
   <div class="q">${c.quote}</div>${controlsHTML(i)}
   <div class="row"><button class="btn main" data-a="start" data-ch="${i}">Начать</button><button class="btn" data-a="title">В меню</button></div>`);}
 function pause(){if(!S||S.over||S.dlg)return;S.paused=true;aiming=false;
