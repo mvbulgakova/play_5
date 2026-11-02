@@ -537,8 +537,28 @@ void main(){
 
 // ───────── шейдер равнины {5,4} ─────────
 const FS_PL=HEAD+`
-uniform vec4 uM[3]; uniform vec4 uE1; uniform vec4 uE2; uniform float uCamPar; uniform float uLampH;
+uniform vec4 uM[3]; uniform vec4 uE1; uniform vec4 uE2; uniform float uCamPar; uniform float uLampH; uniform mat4 uGW;
 const vec3 FOG=vec3(0.20,0.21,0.30);
+const vec3 SUN=vec3(0.62,-0.55,0.16);
+// Небо Равнины: точки абсолюта (идеальные точки) в мировых координатах — поэтому небо не «прыгает» на сгибах.
+vec3 skyCol(vec3 w,float sv){
+  vec3 S=normalize(SUN); float h=clamp(sv,-0.2,1.);
+  vec3 hor=vec3(0.80,0.42,0.26), mid=vec3(0.26,0.15,0.28), zen=vec3(0.025,0.035,0.10);
+  vec3 c=mix(hor,mid,smoothstep(-0.02,0.16,h)); c=mix(c,zen,smoothstep(0.14,0.7,h));
+  float sd=max(dot(w,S),0.);
+  c+=vec3(1.0,0.66,0.36)*(pow(sd,6.)*0.35+pow(sd,60.)*1.2)*smoothstep(-0.1,0.1,h+0.05);
+  c+=vec3(1.4,1.15,0.85)*smoothstep(0.9975,0.999,sd)*3.;                       // диск светила
+  // облака: растянутые по горизонтали мазки, подсвечены со стороны светила
+  vec2 cp=w.xy/(abs(w.z)+0.22)*2.6;
+  float n=fbm(vec3(cp*vec2(1.1,2.4),1.7)), n2=fbm(vec3(cp*3.1,4.2));
+  float dens=smoothstep(0.42,0.66,n*0.75+n2*0.35)*smoothstep(0.0,0.06,h)*(1.-smoothstep(0.5,0.85,h));
+  vec3 cc=mix(vec3(0.10,0.07,0.13),vec3(1.0,0.55,0.32),pow(sd,2.)*0.9+0.1*n)*(0.6+0.6*n2);
+  c=mix(c,cc,dens*0.92);
+  // звёзды в зените
+  vec3 sp=floor(w*260.); float st=step(0.9975,fract(sin(dot(sp,vec3(12.9898,78.233,37.719)))*43758.5453));
+  c+=vec3(0.9,0.95,1.1)*st*smoothstep(0.35,0.8,h)*(1.-dens)*0.8;
+  return c;
+}
 float map(vec4 p){
   float d=asinh(p.z); gId=0;
   float a=md(p,uE1), b=md(p,uE2);
@@ -569,8 +589,10 @@ void main(){
   }
   vec4 up=tp(vec4(0,0,1,0),p);
   float sv=md(v,up);
-  vec3 sky=mix(vec3(0.62,0.44,0.36),vec3(0.05,0.07,0.17),smoothstep(-0.15,0.7,sv));
-  sky+=vec3(1.0,0.75,0.45)*pow(max(sv*0.5+0.5,0.),40.)*0.0;
+  vec4 wq=uGW*(p0+v0); vec3 w=normalize(wq.xyz);                 // идеальная точка луча в мире
+  vec4 up0=tp(vec4(0,0,1,0),p0); float sv0=md(v0,up0);
+  vec3 sky=skyCol(w,sv0);
+  vec3 haze=skyCol(w,0.02)*0.85;                                   // воздушная перспектива — цвет неба у горизонта
   vec3 col=sky; float tHit=1e9;
   vec3 lamp=vec3(1.0,0.80,0.55);
   if(hit){
@@ -586,16 +608,21 @@ void main(){
       sc=brdf(base,1.,rough,n,v,L,p)*lamp*att+ambEnv(n,v,L,lamp,att,base,1.,rough,1.)+base*0.10*skyl; }
     else{
       bool odd=((par+int(uCamPar))%2)==1;
-      vec3 base=odd? vec3(0.20,0.30,0.42): vec3(0.80,0.73,0.60);
-      base*=0.85+0.3*fbm(p.xyz*12.);
+      vec3 base=odd? vec3(0.16,0.25,0.36): vec3(0.74,0.64,0.50);
+      float g1=fbm(p.xyz*12.), g2=fbm(p.xyz*48.+3.);
+      base*=0.78+0.38*g1;
+      if(!odd){ vec2 bq=p.xy*38.; bq.x+=0.5*floor(bq.y); vec2 bf=abs(fract(bq)-.5);          // брусчатка
+        base*=mix(0.62,1.,smoothstep(0.015,0.06,0.5-max(bf.x,bf.y)))*(0.9+0.2*fract(sin(dot(floor(bq),vec2(7.1,3.7)))*91.3));
+        base=mix(base,vec3(0.36,0.42,0.22),smoothstep(0.55,0.8,g2)*0.45); }                 // мох между камнями
+      else { base=mix(base,vec3(0.32,0.40,0.50),smoothstep(0.6,0.9,g2)*0.3); }
       float e=asinh(abs(md(p,uM[0])));
       float lw=0.010+0.0025*t;
       base=mix(base,vec3(0.07,0.06,0.05),1.-smoothstep(lw,lw*1.8,e));
-      sc=base*(0.30*skyl+max(md(n,L),0.)*att*lamp*0.9);
+      sc=base*(0.30*skyl*vec3(0.85,0.82,1.0)+max(md(n,L),0.)*att*lamp*0.9)+base*vec3(1.0,0.7,0.5)*0.06;
     }
-    col=mix(FOG,sc,exp(-t/uFog));
+    col=mix(haze,sc,exp(-t/uFog));
   } else if(ohit){
-    tHit=gTO; t=gTO; col=mix(FOG,shadeObject(p0,v0,lamp)+vec3(0.05,0.05,0.07),exp(-t/uFog));
+    tHit=gTO; t=gTO; col=mix(haze,shadeObject(p0,v0,lamp)+vec3(0.05,0.05,0.07),exp(-t/uFog));
   }
   col=overlays(col,tHit,p0,v0);
   fragColor=outc(col, tHit<1e8? tHit : 60.);
@@ -864,7 +891,7 @@ function makePlane(L){
     render(SC,now,objs){const P=PROG.plane;if(!P)return;gl.useProgram(P.pr);const Lc=P.loc,c=S.c,Gi=linv(c.G);
       const f1=(n,v)=>{if(Lc[n]!=null)gl.uniform1f(Lc[n],v);},f4=(n,v)=>{if(Lc[n]!=null)gl.uniform4fv(Lc[n],v);};
       gl.uniform2fv(Lc.uRes,[SC.sw,SC.sh]);gl.uniformMatrix4fv(Lc.uCam,false,mul(mul(c.T,boostZ(c.h)),rotYP(c.yaw,c.pitch)));f1('uDirect',SC.post?0:1);
-      f1('uTanFov',fovTan());f1('uFog',8);f1('uTube',0.035);f4('uM',PL.M.flat());f4('uE1',PL.E1);f4('uE2',PL.E2);f1('uCamPar',c.par);f1('uLampH',1.1);
+      f1('uTanFov',fovTan());f1('uFog',8);f1('uTube',0.035);f4('uM',PL.M.flat());f4('uE1',PL.E1);f4('uE2',PL.E2);f1('uCamPar',c.par);f1('uLampH',1.1);if(Lc.uGW!=null)gl.uniformMatrix4fv(Lc.uGW,false,c.G);
       setObjects(Lc,objs,x=>apply(Gi,x),now);gl.drawArrays(gl.TRIANGLES,0,3);
       if(MAP){renderMap(c);drawMarkers(c);}},
   };
