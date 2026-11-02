@@ -71,6 +71,8 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
   put(d,m,tor,1);
   put(d,m,sdTorZ((q-vec3(0,-0.004,0)).xzy,0.031,0.004),20);
   put(d,m,sdBox(q-vec3(0,-0.004,0.033),vec3(0.006,0.005,0.002)),2);
+  if(!robe){ float by=q.y-0.012; by-=0.014*clamp(floor(by/0.014+0.5),0.,2.);                     // двубортный ряд пуговиц
+    put(d,m,length(vec3(abs(q.x)-0.011,by,q.z-0.0265+max(0.,0.012-q.y)*0.25))-0.0026,2); }
   // пальто: расширяется книзу, спереди разрез; у мантий — до пола
   { float y0=0.002, y1=robe?-0.138:-0.108; float t=clamp((y0-q.y)/(y0-y1),0.,1.);
     float rr=mix(0.034,robe?0.058:0.052,t)+0.005*abs(sw)*t*wk, ang=atan(q.x,q.z);
@@ -103,6 +105,8 @@ float figureSDF(vec3 q,float sl,int vr,out int m){
     float eye=min(sdSph(hq-vec3(0.0065,0.0005,0.0158),0.0026),sdSph(hq-vec3(-0.0065,0.0005,0.0158),0.0026)); put(d,m,eye,23); }
   else{ // маска Чертёжников: фарфоровая, с латунным моноклем-линзой
     put(d,m,sdEll(hq-vec3(0,-0.004,0.010),vec3(0.0165,0.021,0.0125)),3);
+    put(d,m,sdTorZ((hq-vec3(0,-0.004,0.006))*vec3(1.,0.8,1.),0.0155,0.0016),2);                // латунный обод маски
+    put(d,m,sdEll(hq-vec3(0,-0.016,0.019),vec3(0.008,0.0055,0.006)),2);                              // дыхало
     vec3 e=hq-vec3(0.0065,0.002,0.0215);
     put(d,m,sdTorZ(e,0.0068,0.0022),2); put(d,m,sdEll(e,vec3(0.006,0.006,0.0028)),4);
     put(d,m,sdEll(hq-vec3(-0.0065,0.002,0.0205),vec3(0.004,0.0022,0.002)),23); }
@@ -184,9 +188,12 @@ void objMat(int mm,int kind,int vr,float par,float sl,vec3 q,float f,vec4 X,out 
   vec3 robe= vr==1? vec3(0.30,0.035,0.04) : vr==2? vec3(0.05,0.13,0.09) : vr==3? vec3(0.20,0.12,0.07) : vr==5? vec3(0.80,0.78,0.72)
 : vr==10? vec3(0.55,0.33,0.28) : vr==6? vec3(0.17,0.17,0.19) : vr==7? vec3(0.09,0.08,0.16) : vr==8? vec3(0.24,0.18,0.09) : vr==9? vec3(0.86,0.84,0.79) : vec3(0.07,0.08,0.13);
   if(mm==1){ base=robe*(0.78+0.4*fbm(vec3(q.x*110.,q.y*26.,q.z*110.))); rough=0.82;
+    if(q.y<-0.004&&q.z>0.0&&abs(q.x)<0.022&&f<0.35) base=mix(base,vec3(0.32,0.05,0.06),0.6);             // подкладка в разрезе
+    if(q.y>0.07&&q.y<0.088&&abs(abs(q.y-0.079)-0.008)<0.0016) base=mix(base,vec3(0.85,0.7,0.4),0.7);     // кант воротника
     if(abs(q.y-(vr==2||vr==5||vr==10?-0.133:-0.103))<0.004||(vr!=2&&vr!=5&&vr!=10&&abs(q.x)<0.007&&q.z>0.015&&q.y<0.0&&q.y>-0.1)){ brass(X,base,rough); metal=1.; } }
   else if(mm==5){ base=robe*0.65; rough=0.85; if(vr==5){ brass(X,base,rough); metal=1.; } }
-  else if(mm==2){ brass(X,base,rough); metal=1.; if(vr==1){ base*=vec3(1.05,0.85,0.75); } }
+  else if(mm==2){ brass(X,base,rough); metal=1.; if(vr==1){ base*=vec3(1.05,0.85,0.75); }
+    if(kind==1&&q.y>0.085&&q.y<0.096&&abs(q.x)<0.008&&q.z>0.02&&fract(q.x*420.)<0.45) base*=0.25; }
   else if(mm==3){ base=vec3(0.86,0.83,0.77)*(0.9+0.15*fbm(q*300.)); rough=0.32; if(vr==3) base=vec3(0.62,0.45,0.34);
     if(vr==6){ base=vec3(0.30,0.30,0.32); metal=1.; rough=0.45; } if(vr==9){ brass(X,base,rough); metal=1.; } }
   else if(mm==15){ base=vec3(0.1); emis=vec3(1.0,0.78,0.45)*(3.0+0.6*sin(uTime*9.)); }
