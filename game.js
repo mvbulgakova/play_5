@@ -1697,7 +1697,7 @@ function puzzleBreak(cv,side,close){const x=cv.getContext('2d'),W=900,Cx=W/2,R=W
   draw();}
 // 5.10 · Пятый постулат: несколько совместимых геометрий — хорды, полюсы, орициклы, дефект, орисферы
 function puzzleCompat(cv,side,close){const x=cv.getContext('2d'),W=900,Cx=W/2,R=W*0.38;let st=0,ok=false;
-  const pt=a=>[Cx+R*Math.cos(a),Cx+R*Math.sin(a)];const a1=-2.4,a2=-0.5,Pa=pt(a1),Pb=pt(a2);
+  const pt=a=>[Cx+R*Math.cos(a),Cx+R*Math.sin(a)];const a1=-1.95,a2=-0.6,Pa=pt(a1),Pb=pt(a2);
   const pole=(()=>{const m=(a1+a2)/2,h=Math.cos((a2-a1)/2);return [Cx+R/h*Math.cos(m),Cx+R/h*Math.sin(m)];})();
   const mid=[(Pa[0]+Pb[0])/2,(Pa[1]+Pb[1])/2];
   const steps=[
@@ -1717,7 +1717,7 @@ function puzzleCompat(cv,side,close){const x=cv.getContext('2d'),W=900,Cx=W/2,R=
     if(hl==='broken'){x.strokeStyle='#ff8a6a';x.beginPath();x.moveTo(...Pa);x.lineTo(Cx,Cx);x.lineTo(...Pb);x.stroke();}
     if(show('pole')||hl==='pmid'||hl==='pon'){const q=hl==='pmid'?mid:hl==='pon'?pt((a1+a2)/2):pole;x.fillStyle=hl&&hl!=='pole'?'#ff8a6a':'#d9ccff';x.beginPath();x.arc(...q,12,0,7);x.fill();
       if(show('pole')){x.strokeStyle='rgba(217,204,255,.6)';x.lineWidth=2;x.beginPath();x.moveTo(...Pa);x.lineTo(...pole);x.lineTo(...Pb);x.stroke();
-        x.setLineDash([8,8]);for(const s of [0.3,0.55,0.8]){const q2=[Pa[0]+(Pb[0]-Pa[0])*s,Pa[1]+(Pb[1]-Pa[1])*s];x.beginPath();x.moveTo(...pole);x.lineTo(Cx+(q2[0]-pole[0])*3+(pole[0]-Cx)*0,0+q2[1]+(q2[1]-pole[1])*2);x.stroke();}x.setLineDash([]);}}
+        x.save();x.beginPath();x.arc(Cx,Cx,R,0,7);x.clip();x.setLineDash([8,8]);for(const s of [0.25,0.5,0.75]){const q2=[Pa[0]+(Pb[0]-Pa[0])*s,Pa[1]+(Pb[1]-Pa[1])*s];x.beginPath();x.moveTo(...pole);x.lineTo(pole[0]+(q2[0]-pole[0])*9,pole[1]+(q2[1]-pole[1])*9);x.stroke();}x.setLineDash([]);x.restore();}}
     const ha=1.9,hT=pt(ha);
     if(show('horo')){x.strokeStyle='#9fdc8a';x.lineWidth=4;x.beginPath();x.ellipse(Cx+(hT[0]-Cx)*0.72,Cx+(hT[1]-Cx)*0.72,R*0.28,R*0.21,ha,0,7);x.stroke();}
     if(hl==='circ'){x.strokeStyle='#ff8a6a';x.beginPath();x.arc(Cx+(hT[0]-Cx)*0.5,Cx+(hT[1]-Cx)*0.5,R*0.2,0,7);x.stroke();}
