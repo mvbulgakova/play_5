@@ -518,7 +518,7 @@ void main(){
     tHit=t;
     int id=gId; vec4 n=calcN(p,d);
     vec3 sc;
-    if(id==3) sc=lamp*2.0;
+    if(id==3) sc=lampGlobe(n,v,lamp,1.,normalize(n.xyz));
     else{
       vec4 Lp=fromHS(vec3(uS*.5,uS*.5,1.41421356));
       vec4 L=tp(Lp,p); float sr=sinh(acosh(max(-md(p,Lp),1.)));
@@ -603,7 +603,7 @@ void main(){
     float att=0.9/(0.15+sr*sr);
     float skyl=0.35+0.65*max(md(n,up),0.);
     vec3 sc;
-    if(id==3) sc=lamp*2.2;
+    if(id==3) sc=lampGlobe(n,v,lamp,1.,normalize(n.xyz));
     else if(id==1){ vec3 base; float rough; brass(p,base,rough);
       sc=brdf(base,1.,rough,n,v,L,p)*lamp*att+ambEnv(n,v,L,lamp,att,base,1.,rough,1.)+base*0.10*skyl; }
     else{
@@ -675,7 +675,7 @@ void main(){
     vec3 n=normalize(vec3(mapE(p+vec3(e,0,0))-d,mapE(p+vec3(0,e,0))-d,mapE(p+vec3(0,0,e))-d));
     vec3 c=floor(p)+.5; vec3 L=normalize(c-p); float r=length(c-p); float att=1.5/(0.22+r*r);
     vec3 sc;
-    if(id==3) sc=lamp*2.4;
+    if(id==3) sc=lampGlobe(vec4(n,0.),vec4(v,0.),lamp,1.,n);
     else{ vec3 base; float rough; brass(vec4(p,1.),base,rough); if(id==2){ base=vec3(0.82,0.83,0.86); rough=0.2; }
       float dif=max(dot(n,L),0.); vec3 hv=normalize(L-v); float sp=pow(max(dot(n,hv),0.),mix(80.,10.,rough));
       base*=0.55; sc=base*(0.03+dif*att*lamp*0.32)+sp*att*lamp*base*0.3+base*vec3(0.03,0.04,0.07); }

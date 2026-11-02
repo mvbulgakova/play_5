@@ -245,6 +245,19 @@ void brass(vec4 p, out vec3 base, out float rough){
   base=vec3(0.95,0.68,0.33)*(0.75+0.35*n); rough=0.26+0.25*smoothstep(0.45,0.8,n);
   float pat=smoothstep(0.60,0.88,fbm(p.xyz*7.+3.));
   base=mix(base,vec3(0.20,0.27,0.20),pat*0.6); rough=mix(rough,0.7,pat*0.6); }
+// Плафон лампы: тёплое стекло с френелевским ободом, латунный каркас (меридианы и пояса), раскалённая нить
+vec3 lampGlobe(vec4 n, vec4 v, vec3 lampC, float lit, vec3 d){
+  float f=clamp(-md(n,v),0.,1.);
+  vec3 amber=lampC*vec3(1.0,0.62,0.32);
+  vec3 glass=amber*(0.45+1.1*pow(f,2.))+lampC*vec3(1.,0.85,0.65)*pow(f,16.)*4.5;
+  glass=mix(glass,amber*0.35,pow(1.-f,2.)*0.5);
+  float mer=abs(fract(atan(d.x,d.z)/6.2832*8.)-0.5), lat=min(abs(d.y),abs(abs(d.y)-0.55));
+  float cage=max(1.-smoothstep(0.035,0.07,mer),1.-smoothstep(0.03,0.06,lat))*(1.-smoothstep(0.8,0.95,abs(d.y)));
+  vec3 brassC=vec3(0.30,0.20,0.09)+lampC*0.25*pow(f,2.);
+  vec3 on=mix(glass,brassC,cage*0.85);
+  vec3 off=vec3(0.03,0.04,0.07)+vec3(0.10,0.16,0.30)*pow(1.-f,3.)+vec3(0.25,0.2,0.12)*pow(f,40.);
+  off=mix(off,vec3(0.16,0.11,0.05),cage*0.8);
+  return mix(off,on,lit); }
 `;
 const MAT = LIGHT + `
 uniform vec4 uP1;
@@ -263,11 +276,7 @@ vec4 bumpN(vec4 p, vec4 n, int id, float k){
   const float e=1.2e-3; float h0=surfH(p,id);
   vec4 g=(surfH(p+e*a,id)-h0)/e*a+(surfH(p+e*b,id)-h0)/e*b;
   return tp(n-k*g,p); }
-vec3 lampShade(vec4 n, vec4 v, vec3 lampC, float lit){
-  float f=clamp(-md(n,v),0.,1.);
-  vec3 core=lampC*(1.8+7.0*pow(f,5.));
-  vec3 off=vec3(0.03,0.04,0.07)+vec3(0.10,0.16,0.30)*pow(1.-f,3.)+vec3(0.25,0.2,0.12)*pow(f,40.);
-  return mix(off,core,lit); }
+vec3 lampShade(vec4 n, vec4 v, vec3 lampC, float lit){ return lampGlobe(n,v,lampC,lit,normalize(n.xyz)); }
 // Витраж в грани между комнатами: свинцовые жилки по кольцам и лучам, цветные стёкла
 void glassCross(vec4 p, vec4 v, float t, inout vec3 thr, inout vec3 acc, vec3 lampC, float lit){
   float fr=fresnel(abs(md(v,uM[0]))); float fg=exp(-t/uFog);
