@@ -714,13 +714,14 @@ const keys=new Set();
 let look=[0,0], joy=[0,0], vbtn=0, moved=false;
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'&&e.target.type==='range')return;
+  if(window.MISSION&&MISSION.active&&MISSION.key(e,true))return;
   const k=e.code;
   if(/^Digit[1-6]$/.test(k)){setWorld(WORLDS[+k.slice(5)-1]);return;}
   if(k==='KeyR'){resetCam();return;}
   if(k==='KeyH'){togglePanel();return;}
   keys.add(k); if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
 });
-addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('keyup',e=>{keys.delete(e.code);if(window.MISSION&&MISSION.active)MISSION.key(e,false);});
 addEventListener('blur',()=>keys.clear());
 let dragging=false,last=[0,0];
 canvas.addEventListener('mousedown',e=>{dragging=true;last=[e.clientX,e.clientY];
@@ -856,12 +857,13 @@ function updateDanger(){
 }
 function frame(now){
   const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
-  step(dt);render();
-  updateDanger();
+  const mission=window.MISSION&&MISSION.active;
+  if(mission)MISSION.frame(dt,now);
+  else{step(dt);render();updateDanger();}
   frameAvg=frameAvg*0.92+dt*0.08;
   if(frameAvg>1/38&&scale>0.3){scale=Math.max(0.3,scale*0.94);frameAvg=1/50;}
   else if(frameAvg<1/57&&scale<1){scale=Math.min(1,scale*1.03);frameAvg=1/50;}
-  if(now-hudT>120){hudT=now;hud();}
+  if(!mission&&now-hudT>120){hudT=now;hud();}
   requestAnimationFrame(frame);
 }
 
@@ -918,4 +920,5 @@ if(location.hash){const h=location.hash.slice(1);if(WORLDS.some(w=>w.id===h))sta
 setWorld(WORLDS.find(w=>w.id===startId)||WORLDS[0]);
 requestAnimationFrame(frame);
 </script>
+<script src="mission.js"></script>
 </html>
