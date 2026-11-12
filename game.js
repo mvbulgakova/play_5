@@ -1844,6 +1844,7 @@ function epiExtra(id,E){const o=[],c=campaign;
   if(c.ch4choice==='reconf'&&E.reconf)o.push(E.reconf);
   if(c.ch3choice==='evac'&&E.evac)o.push(E.evac);
   if(c.kasselSpared&&E.kassel)o.push(E.kassel);
+  if(c.sawSign&&E.ortt)o.push(E.ortt);
   if(Object.keys(c.records||{}).length>=6&&E.records)o.push(E.records);
   return o;}
 function ending(id,score){S.over=true;AU.win();const E=STORY.endings[id];const st=S.stats;
