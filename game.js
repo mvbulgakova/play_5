@@ -156,8 +156,18 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
   if(kind==5){ float ring=sdTorZ(q,0.128,0.011), disk=sdEll(q,vec3(0.122,0.122,0.002)); m=2; float d=ring; if(disk<d){d=disk;m=11;} return d; }
   if(kind==9){ // Главная Машина Прямизны: гироскоп из трёх ортогональных колец
     vec3 a=q; a.xy=rot(uTime*0.5)*a.xy; vec3 b=q.yzx; b.xy=rot(uTime*0.7)*b.xy; vec3 c=q.zxy; c.xy=rot(-uTime*0.9)*c.xy;
-    float d=min(min(sdTorZ(a,0.22,0.012),sdTorZ(b,0.18,0.012)),sdTorZ(c,0.14,0.012)); m=2;
-    float core=sdSph(q,0.055); if(core<d){d=core;m=12;} return d; }
+    // зубчатые кольца-шестерни на осях, клетка вокруг ядра, колонна с основанием
+    float ta=atan(a.y,a.x), tb=atan(b.y,b.x), tc=atan(c.y,c.x);
+    float ra=sdTorZ(a,0.215,0.0105)-0.0045*smoothstep(0.35,0.5,abs(fract(ta*36./6.2832)-0.5))*step(0.215,length(a.xy));
+    float rb=sdTorZ(b,0.175,0.0105)-0.0045*smoothstep(0.35,0.5,abs(fract(tb*30./6.2832)-0.5))*step(0.175,length(b.xy));
+    float rc=sdTorZ(c,0.135,0.0105)-0.0045*smoothstep(0.35,0.5,abs(fract(tc*24./6.2832)-0.5))*step(0.135,length(c.xy));
+    float d=min(min(ra,rb),rc)*0.8; m=2;
+    d=min(d,min(sdCaps(a,vec3(-0.215,0,0),vec3(0.215,0,0),0.0035),sdCaps(b,vec3(0,-0.175,0),vec3(0,0.175,0),0.0035)));   // оси
+    d=min(d,sdCaps(c,vec3(-0.135,0,0),vec3(0.135,0,0),0.003));
+    float cage=min(min(sdTorZ(q,0.072,0.0028),sdTorZ(q.yzx,0.072,0.0028)),sdTorZ(q.zxy,0.072,0.0028)); d=min(d,cage);
+    float col=min(sdCaps(q,vec3(0,-0.075,0),vec3(0,-0.235,0),0.011),sdEll(q-vec3(0,-0.245,0),vec3(0.07,0.012,0.07)));
+    col=min(col,sdTorZ((q-vec3(0,-0.15,0)).xzy,0.014,0.005)); d=min(d,col);
+    float core=sdSph(q,0.052); if(core<d){d=core;m=12;} return d; }
   if(kind==12){ float bob=sdRCone(q-vec3(0,-0.055,0),0.002,0.018,0.035); float st=sdCaps(q,vec3(0,-0.02,0),vec3(0,0.07,0),0.0012);
     float hk=sdTorZ(q-vec3(0,0.072,0),0.006,0.0015); m=2; return min(min(bob,st),hk); }
   if(kind==13){ float arc=max(sdTorZ(q,0.045,0.004),-q.y); float bar=sdCaps(q,vec3(-0.047,0,0),vec3(0.047,0,0),0.003);
@@ -187,7 +197,15 @@ float objSDF(int kind,vec3 q,float sl,int vr,out int m){
     vec3 lq=vec3(abs(q.x),q.y,abs(q.z));float legs=sdCaps(lq,vec3(0.06,0.012,0.04),vec3(0.06,-0.085,0.04),0.004);
     float arm=sdCaps(q,vec3(0.06,0.02,-0.04),vec3(0.05,0.1,-0.03),0.0025), lmp=sdSph(q-vec3(0.05,0.1,-0.03),0.012);
     float paper=sdBox(b-vec3(0,0.0036,0),vec3(0.05,0.0008,0.035));
-    float d=min(board,top); m=16; if(legs<d){d=legs;m=16;} if(arm<d){d=arm;m=2;} if(lmp<d){d=lmp;m=15;} if(paper<d){d=paper;m=18;} return d; }
+    float d=min(board,top); m=16; if(legs<d){d=legs;m=16;} if(arm<d){d=arm;m=2;} if(lmp<d){d=lmp;m=15;} if(paper<d){d=paper;m=18;}
+    float bars=min(sdCaps(vec3(abs(q.x),q.y,q.z),vec3(0.06,-0.05,-0.04),vec3(0.06,-0.05,0.04),0.003),sdCaps(q,vec3(-0.06,-0.05,-0.04),vec3(0.06,-0.05,-0.04),0.003)); if(bars<d){d=bars;m=16;}
+    float tsq=min(sdBox(b-vec3(0.004,0.0052,0.012),vec3(0.054,0.0007,0.0035)),sdBox(b-vec3(-0.05,0.0052,0.012),vec3(0.004,0.0009,0.016))); if(tsq<d){d=tsq;m=2;}   // рейсшина
+    float cp=min(sdCaps(b,vec3(0.02,0.006,-0.02),vec3(0.034,0.006,0.008),0.0014),sdCaps(b,vec3(0.02,0.006,-0.02),vec3(0.008,0.006,0.006),0.0014)); if(cp<d){d=cp;m=2;}  // циркуль
+    float roll=min(sdCaps(q,vec3(-0.062,0.023,-0.036),vec3(-0.005,0.023,-0.042),0.0058),sdCaps(q,vec3(-0.058,0.031,-0.04),vec3(-0.012,0.031,-0.04),0.005)); if(roll<d){d=roll;m=18;}  // свёрнутые синьки
+    float inkw=max(sdSph(q-vec3(-0.058,0.021,0.036),0.008),q.y-0.025); if(inkw<d){d=inkw;m=23;}
+    float quill=sdCaps(q,vec3(-0.058,0.024,0.036),vec3(-0.045,0.06,0.03),0.0012); if(quill<d){d=quill;m=3;}
+    float drw=sdBox(q-vec3(0,0.002,0.05),vec3(0.03,0.006,0.002)), kn=sdSph(q-vec3(0,0.002,0.054),0.0035); if(drw<d){d=drw;m=16;} if(kn<d){d=kn;m=2;}
+    return d; }
   m=0; return sdSph(q,0.03);
 }
 // Бумага листа: пергамент, рукопись, чертёж в круге Кэли — Клейна, подпись, клякса; vr==1 — лист вычеркнутых
@@ -374,6 +392,14 @@ float map(vec4 p){
   for(int i=0;i<3;i++) if(gW[i]){ float dw=asinh(-md(p,uF[i])); if(dw<d){d=dw;gId=5+i;} }
   return d;
 }` + NORMAL + MAT + OBJ_SDF + OBJ_H + `
+// Картотека Архива: кольца ящиков вокруг центра грани. u — от центра ящика к краю (0..1), sv — поперёк кольца (−.5..5)
+float drawer(vec4 p,float r,out float u,out float sv,out float hid){
+  u=0.; sv=0.; hid=0.;
+  float band=(r-0.185)/0.068, bi=floor(band); if(bi<0.||bi>3.) return 0.;
+  float a=asinh(abs(md(p,uM[2]))), b=asinh(abs(md(p,uM[3]))), sr=max(sinh(r),1e-3);
+  float t2=asin(clamp(sinh(a)/sr,0.,1.)), t3=asin(clamp(sinh(b)/sr,0.,1.));
+  float n=floor(2.5+bi*0.75), x=t2/max(t2+t3,1e-4)*n, c=2.*floor(x/2.+0.5);
+  u=abs(x-c); sv=fract(band)-0.5; hid=fract(sin(bi*17.3+c*7.7+3.1)*437.5); return 1.; }
 float wallH(vec4 p){ float e=edgeDist(p), r=acosh(max(-md(p,uP1),1.));
   float h=0.008*smoothstep(0.045,0.06,e)*(1.-smoothstep(0.105,0.118,e));
   h+=0.003*exp(-pow((e-0.075)/0.006,2.));
@@ -382,6 +408,12 @@ float wallH(vec4 p){ float e=edgeDist(p), r=acosh(max(-md(p,uP1),1.));
   h-=0.002*(1.-smoothstep(0.125,0.13,r));
   if(uPal==1){ float a=asinh(abs(md(p,uM[2]))); h-=0.004*(1.-smoothstep(0.004,0.008,abs(mod(r,0.11)-0.055)))*step(0.17,r);
     h-=0.004*(1.-smoothstep(0.004,0.008,abs(mod(a,0.09)-0.045)))*step(0.17,r); h+=0.004*fbm(p.xyz*30.); }
+  if(uPal==0){ float u,sv,hid; h-=0.003*exp(-pow((e-0.2)/0.005,2.));
+    if(e>0.205&&drawer(p,r,u,sv,hid)>.5){
+      float bev=smoothstep(0.03,0.12,1.-u)*smoothstep(0.04,0.16,0.5-abs(sv));
+      h+=0.0045*bev*(1.+1.3*step(0.88,hid));
+      h+=0.005*(1.-smoothstep(0.006,0.011,length(vec2(u*0.055,(sv+0.2)*0.068))));               // ручка
+      float lf=max(u-0.5,abs(sv-0.14)/0.13-1.); h+=0.0015*(1.-smoothstep(-0.02,0.0,abs(lf+0.06)-0.06)); } }
   h+=0.0015*fbm(p.xyz*45.);
   return h; }
 float surfH(vec4 p,int id){ if(id==1) return edgeH(p); if(id>=5) return wallH(p); return 0.; }
@@ -393,6 +425,8 @@ void wallMat(vec4 p,int room,out vec3 base,out float metal,out float rough){
   if(uPal==1){ // тюрьма: тёсаный камень, железо
     base=vec3(0.20,0.21,0.23)*(0.6+0.7*st)*(0.85+0.3*fbm(p.xyz*24.));
     float mortar=max(1.-smoothstep(0.004,0.008,abs(mod(r,0.11)-0.055)),1.-smoothstep(0.004,0.008,abs(mod(a,0.09)-0.045)))*step(0.17,r);
+    float bid=fract(sin(floor(r/0.11)*31.7+floor((a+0.045)/0.09)*17.1+float(room))*4375.5); base*=0.72+0.5*bid;
+    base=mix(base,base*vec3(0.55,0.62,0.6),smoothstep(0.5,0.85,fbm(vec3(a*40.,r*6.,3.)))*0.6);            // сырость
     base=mix(base,vec3(0.07),mortar*0.8);
     base=mix(base,vec3(0.22,0.14,0.08),smoothstep(0.55,0.85,fbm(p.xyz*9.+2.))*0.5);
     if(e<0.118){ base=vec3(0.16,0.16,0.17); metal=1.; rough=0.55; if(abs(e-0.075)<0.0065) base=vec3(0.28,0.27,0.26); }
@@ -410,13 +444,28 @@ void wallMat(vec4 p,int room,out vec3 base,out float metal,out float rough){
     if(r<0.16){ brass(p,base,rough); metal=1.; rough*=0.5;
       if(r<0.128){ base=vec3(0.92,0.90,0.86); metal=0.; rough=0.2; float star=1.-smoothstep(0.003,0.006,min(a,b)); if(star>.5){ brass(p,base,rough); metal=1.; } } }
     return; }
-  vec3 paper= k==0? vec3(0.13,0.24,0.25) : k==1? vec3(0.30,0.10,0.09) : k==2? vec3(0.27,0.23,0.12) : vec3(0.13,0.17,0.27);
-  base=paper*(0.70+0.6*st);
-  float dm=abs(sin(r*55.)*sin(min(a,b)*55.)); base*=1.+0.14*smoothstep(0.6,0.95,dm);
-  float w=0.0035;
-  float chalk=max(1.-smoothstep(w,2.*w,abs(r-0.26)), 1.-smoothstep(w,2.*w,abs(r-0.40)));
-  chalk=max(chalk,(1.-smoothstep(w,2.*w,abs(a-0.09)))*step(0.18,r)*step(r,0.46));
-  base=mix(base,vec3(0.80,0.82,0.78),chalk*0.35*smoothstep(0.3,0.6,fbm(p.xyz*30.)));
+  vec3 paper= k==0? vec3(0.10,0.22,0.23) : k==1? vec3(0.30,0.08,0.07) : k==2? vec3(0.27,0.21,0.09) : vec3(0.10,0.14,0.27);
+  // панель тёмного ореха вокруг картотеки
+  float pg=fbm(vec3(r*26.,min(a,b)*210.,float(room)));
+  base=vec3(0.17,0.095,0.05)*(0.6+0.75*pg); rough=0.5;
+  base*=mix(0.55,1.,smoothstep(0.0,0.012,abs(e-0.2)));                                           // паз у рамы
+  float u,sv,hid;
+  if(e>0.205&&drawer(p,r,u,sv,hid)>.5){
+    float hh=fract(hid*7.31+float(room)*0.37), grain=fbm(vec3(r*240.,u*5.+hid*9.,hid*20.));
+    vec3 lac=paper*(0.75+0.5*hh)*(0.8+0.4*grain);                                               // цветной лак
+    float wear=smoothstep(0.45,0.8,fbm(p.xyz*38.+hid*5.))*max(smoothstep(0.72,0.95,u),smoothstep(0.3,0.46,abs(sv)));
+    base=mix(lac,vec3(0.34,0.21,0.11)*(0.7+0.5*grain),wear*0.8); rough=mix(0.3,0.65,wear);       // потёртости до дерева
+    float gap=max(smoothstep(0.93,0.97,u),smoothstep(0.43,0.47,abs(sv))); base=mix(base,vec3(0.015,0.012,0.01),gap); rough=mix(rough,0.9,gap);
+    // рамка с карточкой
+    float fx=u-0.5, fy=abs(sv-0.14)/0.13-1., lf=max(fx,fy);
+    if(lf<0.){ if(lf>-0.12){ brass(p,base,rough); metal=1.; }
+      else if(hh>0.18){ base=vec3(0.80,0.73,0.56)*(0.85+0.2*fbm(p.xyz*90.)); rough=0.9;          // карточка с чернильными строками
+        float row=fract((sv-0.02)/0.05), wd=step(0.2,fract(sin(floor(u*9.)*12.9+hid*40.)*43.7));
+        base=mix(base,vec3(0.12,0.09,0.12),(1.-smoothstep(0.1,0.22,abs(row-0.5)))*wd*step(u,0.38)*step(0.04,sv)*step(sv,0.25));
+        if(hh>0.93) base=mix(base,vec3(0.55,0.05,0.04),1.-smoothstep(0.015,0.03,abs(sv-0.14-(u-0.2)*0.25)));  // вычеркнуто красным
+      } else { base=vec3(0.03,0.025,0.02); rough=0.9; } }
+    if(length(vec2(u*0.055,(sv+0.2)*0.068))<0.0095){ brass(p,base,rough); metal=1.; rough*=0.7; }  // ручка
+  }
   base*=mix(0.5,1.,smoothstep(0.115,0.20,e));
   if(e<0.118){ float gr=fbm(vec3(alongEdge(p)*60.,e*300.,1.)); base=vec3(0.20,0.11,0.055)*(0.65+0.7*gr); rough=0.42;
     if(abs(e-0.075)<0.0065){ brass(p,base,rough); metal=1.; } }
