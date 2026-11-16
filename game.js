@@ -369,29 +369,8 @@ vec3 overlays(vec3 col, inout float tHit, vec4 p0, vec4 v0){
   return col;
 }`;
 
-// ───────── шейдер комнат-многогранников ─────────
-const NK=16;
-const FS_RM=HEAD+`
-#define NK ${NK}
-uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV; uniform float uBall; uniform float uCamPar;
-uniform vec4 uF[3]; uniform vec4 uA[4];
-uniform vec4 uK[NK]; uniform float uLit[NK]; uniform vec4 uRC[NK]; uniform int uNK;
-uniform int uPal; uniform vec3 uLampC; uniform float uStraight;
-const vec3 FOG=vec3(0.010,0.013,0.030);
-vec4 gA[4]; bool gW[3];
-int roomKey(vec4 k){
-  for(int j=0;j<NK;j++){ if(j>=uNK) break; vec4 r=abs(k-uK[j])/uK[j];
-    if(max(max(r.x,r.y),max(r.z,r.w))<4e-3) return j; }
-  return -1; }
-vec4 nkey(vec4 F){ return vec4(gA[0].w-2.*md(gA[0],F)*F.w, gA[1].w-2.*md(gA[1],F)*F.w, gA[2].w-2.*md(gA[2],F)*F.w, gA[3].w-2.*md(gA[3],F)*F.w); }
-float map(vec4 p){
-  float a=md(p,uE1), b=md(p,uE2);
-  float d=asinh(sqrt(a*a+b*b))-uTube; gId=1;
-  float dv=acosh(max(-md(p,uV),1.))-uBall; if(dv<d){d=dv;gId=2;}
-  float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
-  for(int i=0;i<3;i++) if(gW[i]){ float dw=asinh(-md(p,uF[i])); if(dw<d){d=dw;gId=5+i;} }
-  return d;
-}` + NORMAL + MAT + OBJ_SDF + OBJ_H + `
+// материалы стен комнат (общие для лучевого и полигонального рендера)
+const WALLS=`
 // Картотека Архива: кольца ящиков вокруг центра грани. u — от центра ящика к краю (0..1), sv — поперёк кольца (−.5..5)
 float drawer(vec4 p,float r,out float u,out float sv,out float hid){
   u=0.; sv=0.; hid=0.;
@@ -475,6 +454,31 @@ void wallMat(vec4 p,int room,out vec3 base,out float metal,out float rough){
       float star=1.-smoothstep(0.003,0.006,min(a,b)), ring=1.-smoothstep(0.003,0.006,abs(r-0.08));
       if(max(star,ring)>0.5){ brass(p,base,rough); metal=1.; } } }
 }
+`;
+// ───────── шейдер комнат-многогранников ─────────
+const NK=16;
+const FS_RM=HEAD+`
+#define NK ${NK}
+uniform vec4 uM[4]; uniform vec4 uE1; uniform vec4 uE2; uniform vec4 uV; uniform float uBall; uniform float uCamPar;
+uniform vec4 uF[3]; uniform vec4 uA[4];
+uniform vec4 uK[NK]; uniform float uLit[NK]; uniform vec4 uRC[NK]; uniform int uNK;
+uniform int uPal; uniform vec3 uLampC; uniform float uStraight;
+const vec3 FOG=vec3(0.010,0.013,0.030);
+vec4 gA[4]; bool gW[3];
+int roomKey(vec4 k){
+  for(int j=0;j<NK;j++){ if(j>=uNK) break; vec4 r=abs(k-uK[j])/uK[j];
+    if(max(max(r.x,r.y),max(r.z,r.w))<4e-3) return j; }
+  return -1; }
+vec4 nkey(vec4 F){ return vec4(gA[0].w-2.*md(gA[0],F)*F.w, gA[1].w-2.*md(gA[1],F)*F.w, gA[2].w-2.*md(gA[2],F)*F.w, gA[3].w-2.*md(gA[3],F)*F.w); }
+float map(vec4 p){
+  float a=md(p,uE1), b=md(p,uE2);
+  float d=asinh(sqrt(a*a+b*b))-uTube; gId=1;
+  float dv=acosh(max(-md(p,uV),1.))-uBall; if(dv<d){d=dv;gId=2;}
+  float dl=acosh(max(p.w,1.))-0.055; if(dl<d){d=dl;gId=3;}
+  for(int i=0;i<3;i++) if(gW[i]){ float dw=asinh(-md(p,uF[i])); if(dw<d){d=dw;gId=5+i;} }
+  return d;
+}` + NORMAL + MAT + OBJ_SDF + OBJ_H + `
+` + WALLS + `
 float guardShadow(vec4 P, vec4 Lw){
   float dl=acosh(max(-md(P,Lw),1.)); vec4 tl=tp(Lw,P); float s=1.;
   for(int j=0;j<NO;j++){ if(j>=uNO) break; int kd=okind(j); if(kd!=1&&kd!=8) continue;
@@ -809,6 +813,7 @@ void main(){
   fragColor=outc(acc+thr*col,tHit);
 }`;
 
+let RAST=null;try{RAST=makeRaster({gl,HEAD,LIGHT,MAT,OBJ_SDF,OBJ_H,WALLS,mul,apply,linv,md,det4,fovTan,setObjects:(...x)=>setObjects(...x),BOUND:()=>BOUND,FOVV:()=>[FOV,VIEW]});}catch(e){console.error('raster',e);}
 const PROG={};
 for(const [k,fs] of [['rooms',FS_RM],['house',FS_HS],['plane',FS_PL],['flat',FS_FL]]){
   try{PROG[k]=program(gl,fs);}catch(e){console.error('shader '+k,e);PROG[k]=null;PROG[k+'_err']=e;}}
@@ -928,7 +933,7 @@ function makeRooms(L){
     lampNear(i,p){return i>=0&&hyperbolicDistance(p,R[i].c)<0.36;},
     unseal(a,b){seals.delete([RI(a),RI(b)].sort().join('-'));buildNb();},seal(a,b){seals.add([RI(a),RI(b)].sort().join('-'));buildNb();},isSealed:(a,b)=>sealed(RI(a),RI(b)),
     roomVerts:i=>VERTS.map(v=>apply(R[i].T,v)),EDGES,roomFaces:i=>FACES.map(F=>apply(R[i].T,F)),
-    render(SC,now,objs){const P=PROG.rooms;if(!P)return;gl.useProgram(P.pr);const Lc=P.loc,c=S.c,Gi=linv(c.G);
+    render(SC,now,objs){if(RAST&&RAST.on&&RAST.rooms({A,L,R,U,RI:SHD/CHD,RF,roomAt,sealed,g,SC,now,objs,S,mark:(aiming&&!S.over&&!S.paused)?(b=>b.s>0.12?b.pt:null)(aimTarget()):null}))return;const P=PROG.rooms;if(!P)return;gl.useProgram(P.pr);const Lc=P.loc,c=S.c,Gi=linv(c.G);
       const f1=(n,v)=>{if(Lc[n]!=null)gl.uniform1f(Lc[n],v);},i1=(n,v)=>{if(Lc[n]!=null)gl.uniform1i(Lc[n],v);},f4=(n,v)=>{if(Lc[n]!=null)gl.uniform4fv(Lc[n],v);};
       gl.uniform2fv(Lc.uRes,[SC.sw,SC.sh]);gl.uniformMatrix4fv(Lc.uCam,false,c.M);f1('uDirect',SC.post?0:1);
       f1('uTanFov',fovTan());f1('uFog',L.fog||6.5);f1('uGlass',1);f1('uTube',0.04);f1('uBall',radii.ball);f1('uCamPar',c.par);

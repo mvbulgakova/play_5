@@ -112,18 +112,19 @@ function prog(fs){const mk=(t,s)=>{const sh=gl.createShader(t);gl.shaderSource(s
   return {p,loc};}
 let P=null,ok=true;
 try{P={down:prog(FS_DOWN),up:prog(FS_UP),fin:prog(FS_FINAL)};}catch(e){console.error(e);ok=false;}
-function target(w,h){const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+function target(w,h,depth){const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texImage2D(gl.TEXTURE_2D,0,FMT.i,w,h,0,gl.RGBA,FMT.t,null);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  let rb=null;if(depth){rb=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,rb);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,w,h);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);}
   const st=gl.checkFramebufferStatus(gl.FRAMEBUFFER);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-  if(st!==gl.FRAMEBUFFER_COMPLETE)throw new Error('framebuffer '+st);return {tex,fb,w,h};}
-function free(t){if(!t)return;gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb);}
+  if(st!==gl.FRAMEBUFFER_COMPLETE)throw new Error('framebuffer '+st);return {tex,fb,w,h,rb};}
+function free(t){if(!t)return;gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb);if(t.rb)gl.deleteRenderbuffer(t.rb);}
 let scene=null,chain=[];
 const LV=5;
 function ensure(w,h){if(scene&&scene.w===w&&scene.h===h)return;
-  free(scene);chain.forEach(free);scene=target(w,h);chain=[];
+  free(scene);chain.forEach(free);scene=target(w,h,true);chain=[];
   let cw=w,ch=h;for(let i=0;i<LV;i++){cw=Math.max(1,cw>>1);ch=Math.max(1,ch>>1);chain.push(target(cw,ch));}}
 // настройки «живописности»: можно ослабить, если кому-то покажется слишком
 const cfg={kuw:1,ink:0.55,bloom:0.9,expo:1.0,grade:1};
